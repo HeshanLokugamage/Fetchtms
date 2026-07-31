@@ -23,12 +23,17 @@ export default function ResourcePersonDashboard() {
   const [marks, setMarks] = useState('');
   const [grade, setGrade] = useState('');
 
+  const [publishAssessmentId, setPublishAssessmentId] = useState('');
+
   const navigate = useNavigate();
 
-  const loadCourses = () => {
+  const getHeaders = () => {
     const token = localStorage.getItem('token');
-    const headers = { Authorization: `Bearer ${token}` };
-    axios.get('http://localhost:4000/courses', { headers })
+    return { Authorization: `Bearer ${token}` };
+  };
+
+  const loadCourses = () => {
+    axios.get('http://localhost:4000/courses', { headers: getHeaders() })
       .then(res => setCourses(res.data))
       .catch(err => setError(err.response?.data?.error || 'Failed to load courses'));
   };
@@ -48,15 +53,13 @@ export default function ResourcePersonDashboard() {
     setMessage('');
     setError('');
     try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
       await axios.post('http://localhost:4000/course-sessions', {
         course_id: sessCourseId,
         session_date: sessDate,
         start_time: startTime,
         end_time: endTime,
         venue
-      }, { headers });
+      }, { headers: getHeaders() });
       setMessage('Session created successfully');
       setSessDate('');
       setStartTime('');
@@ -71,9 +74,7 @@ export default function ResourcePersonDashboard() {
   const loadSessions = async (courseId) => {
     if (!courseId) return;
     try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-      const res = await axios.get(`http://localhost:4000/course-sessions/${courseId}`, { headers });
+      const res = await axios.get(`http://localhost:4000/course-sessions/${courseId}`, { headers: getHeaders() });
       setSessions(res.data);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load sessions');
@@ -85,13 +86,11 @@ export default function ResourcePersonDashboard() {
     setMessage('');
     setError('');
     try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
       await axios.post('http://localhost:4000/attendance', {
         session_id: sessionId,
         student_id: attStudentId,
         status: attStatus
-      }, { headers });
+      }, { headers: getHeaders() });
       setMessage('Attendance marked successfully');
       setSessionId('');
       setAttStudentId('');
@@ -105,21 +104,32 @@ export default function ResourcePersonDashboard() {
     setMessage('');
     setError('');
     try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-      await axios.post('http://localhost:4000/assessments', {
+      const res = await axios.post('http://localhost:4000/assessments', {
         student_id: asStudentId,
         course_id: asCourseId,
         marks,
         grade
-      }, { headers });
-      setMessage('Marks recorded (not yet published)');
+      }, { headers: getHeaders() });
+      setMessage(`Marks recorded (not yet published). Assessment ID: ${res.data.assessment.assessment_id}`);
       setAsStudentId('');
       setAsCourseId('');
       setMarks('');
       setGrade('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to record marks');
+    }
+  };
+
+  const handlePublishMarks = async (e) => {
+    e.preventDefault();
+    setMessage('');
+    setError('');
+    try {
+      await axios.patch(`http://localhost:4000/assessments/${publishAssessmentId}/publish`, {}, { headers: getHeaders() });
+      setMessage('Marks published successfully');
+      setPublishAssessmentId('');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to publish marks');
     }
   };
 
@@ -221,7 +231,7 @@ export default function ResourcePersonDashboard() {
       </form>
 
       <h3>Enter Assessment Marks</h3>
-      <form onSubmit={handleEnterMarks}>
+      <form onSubmit={handleEnterMarks} style={{ marginBottom: '30px' }}>
         <div style={{ marginBottom: '10px' }}>
           <label>Student ID</label><br />
           <input value={asStudentId} onChange={e => setAsStudentId(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
@@ -239,6 +249,15 @@ export default function ResourcePersonDashboard() {
           <input value={grade} onChange={e => setGrade(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
         </div>
         <button type="submit" style={{ padding: '8px 16px' }}>Submit Marks</button>
+      </form>
+
+      <h3>Publish Marks</h3>
+      <form onSubmit={handlePublishMarks}>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Assessment ID</label><br />
+          <input value={publishAssessmentId} onChange={e => setPublishAssessmentId(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+        </div>
+        <button type="submit" style={{ padding: '8px 16px' }}>Publish Marks</button>
       </form>
     </div>
   );

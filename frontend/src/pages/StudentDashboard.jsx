@@ -6,6 +6,7 @@ export default function StudentDashboard() {
   const [attendance, setAttendance] = useState([]);
   const [assessments, setAssessments] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [registrations, setRegistrations] = useState([]);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
@@ -24,6 +25,10 @@ export default function StudentDashboard() {
     axios.get('http://localhost:4000/payments/my', { headers })
       .then(res => setPayments(res.data))
       .catch(err => setError(err.response?.data?.error || 'Failed to load payments'));
+
+    axios.get('http://localhost:4000/registrations/my', { headers })
+      .then(res => setRegistrations(res.data))
+      .catch(err => setError(err.response?.data?.error || 'Failed to load registrations'));
   }, []);
 
   const handleLogout = () => {
@@ -44,6 +49,24 @@ export default function StudentDashboard() {
       </div>
 
       {error && <p style={{ color: 'red' }}>{error}</p>}
+
+      <h3>My Registrations ({registrations.length})</h3>
+      <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '30px' }}>
+        <thead>
+          <tr>
+            <th>Course ID</th><th>Status</th><th>Registered At</th>
+          </tr>
+        </thead>
+        <tbody>
+          {registrations.map(r => (
+            <tr key={r.registration_id}>
+              <td>{r.course_id}</td>
+              <td>{r.status}</td>
+              <td>{r.registered_at}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
       <h3>My Attendance ({attendance.length})</h3>
       <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '30px' }}>

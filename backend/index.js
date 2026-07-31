@@ -75,6 +75,18 @@ function authenticate(allowedRoles = []) {
   };
 }
 
+// Helper: get student_id linked to a logged-in user
+async function getStudentIdForUser(userId) {
+  const { data, error } = await supabase
+    .from('students')
+    .select('student_id')
+    .eq('user_id', userId)
+    .single();
+
+  if (error || !data) return null;
+  return data.student_id;
+}
+
 // Create a new student (admin or device user only)
 app.post('/students', authenticate(['admin', 'device']), async (req, res) => {
   const {
@@ -146,7 +158,7 @@ app.patch('/courses/:id/publish', authenticate(['admin', 'device']), async (req,
   res.json({ message: 'Course published', course: data[0] });
 });
 
-// Create a course session (admin or device user only)
+// Create a course session (admin, device, or resource person)
 app.post('/course-sessions', authenticate(['admin', 'device', 'resource_person']), async (req, res) => {
   const { course_id, session_date, start_time, end_time, venue } = req.body;
 
@@ -171,6 +183,70 @@ app.get('/course-sessions/:courseId', authenticate([]), async (req, res) => {
   res.json(data);
 });
 
+// Assign a resource person to a course (admin or device user only)
+app.post('/course-resource-persons', authenticate(['admin', 'device']), async (req, res) => {
+  const { course_id, trainer_id } = req.body;
+
+  const { data, error } = await supabase
+    .from('course_resource_persons')
+    .insert([{ course_id, trainer_id }])
+    .select();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.status(201).json({ message: 'Resource person assigned', assignment: data[0] });
+});
+
+// Get resource persons assigned to a course (any logged-in user)
+app.get('/course-resource-persons/:courseId', authenticate([]), async (req, res) => {
+  const { courseId } = req.params;
+  const { data, error } = await supabase
+    .from('course_resource_persons')
+    .select('*')
+    .eq('course_id', courseId);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// Get own registrations (student only) — MUST come before /registrations/:courseId
+app.get('/registrations/my', authenticate(['student']), async (req, res) => {
+  const studentId = await getStudentIdForUser(req.user.userId);
+  if (!studentId) return res.status(404).json({ error: 'No student record linked to this account' });
+
+  const { data, error } = await supabase
+    .from('registrations')
+    .select('*')
+    .eq('student_id', studentId);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// Register a student for a course (admin or device user only)
+app.post('/registrations', authenticate(['admin', 'device']), async (req, res) => {
+  const { student_id, course_id } = req.body;
+
+  const { data, error } = await supabase
+    .from('registrations')
+    .insert([{ student_id, course_id, status: 'registered' }])
+    .select();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.status(201).json({ message: 'Student registered for course', registration: data[0] });
+});
+
+// Get registrations for a course (admin or device user only)
+app.get('/registrations/:courseId', authenticate(['admin', 'device']), async (req, res) => {
+  const { courseId } = req.params;
+  const { data, error } = await supabase
+    .from('registrations')
+    .select('*')
+    .eq('course_id', courseId);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
 // Mark attendance (resource person, admin, or device user)
 app.post('/attendance', authenticate(['resource_person', 'admin', 'device']), async (req, res) => {
   const { session_id, student_id, status } = req.body;
@@ -186,10 +262,13 @@ app.post('/attendance', authenticate(['resource_person', 'admin', 'device']), as
 
 // Get own attendance (student only)
 app.get('/attendance/my', authenticate(['student']), async (req, res) => {
+  const studentId = await getStudentIdForUser(req.user.userId);
+  if (!studentId) return res.status(404).json({ error: 'No student record linked to this account' });
+
   const { data, error } = await supabase
     .from('attendance')
     .select('*')
-    .eq('student_id', req.user.userId);
+    .eq('student_id', studentId);
 
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
@@ -228,10 +307,13 @@ app.patch('/assessments/:id/publish', authenticate(['admin', 'resource_person'])
 
 // Get own published marks (student only)
 app.get('/assessments/my', authenticate(['student']), async (req, res) => {
+  const studentId = await getStudentIdForUser(req.user.userId);
+  if (!studentId) return res.status(404).json({ error: 'No student record linked to this account' });
+
   const { data, error } = await supabase
     .from('assessments')
     .select('*')
-    .eq('student_id', req.user.userId)
+    .eq('student_id', studentId)
     .eq('published', true);
 
   if (error) return res.status(500).json({ error: error.message });
@@ -253,10 +335,13 @@ app.post('/payments', authenticate(['admin', 'device']), async (req, res) => {
 
 // Get own payments / outstanding balance (student only)
 app.get('/payments/my', authenticate(['student']), async (req, res) => {
+  const studentId = await getStudentIdForUser(req.user.userId);
+  if (!studentId) return res.status(404).json({ error: 'No student record linked to this account' });
+
   const { data, error } = await supabase
     .from('payments')
     .select('*')
-    .eq('student_id', req.user.userId);
+    .eq('student_id', studentId);
 
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
