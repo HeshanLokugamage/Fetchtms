@@ -160,7 +160,7 @@ app.post('/attendance', authenticate(['resource_person', 'admin', 'device']), as
 });
 
 // Get own attendance (student only)
-app.get('/attendance/my', authenticate(['team']), async (req, res) => {
+app.get('/attendance/my', authenticate(['student']), async (req, res) => {
   const { data, error } = await supabase
     .from('attendance')
     .select('*')
@@ -202,7 +202,7 @@ app.patch('/assessments/:id/publish', authenticate(['admin', 'resource_person'])
 });
 
 // Get own published marks (student only)
-app.get('/assessments/my', authenticate(['team']), async (req, res) => {
+app.get('/assessments/my', authenticate(['student']), async (req, res) => {
   const { data, error } = await supabase
     .from('assessments')
     .select('*')
@@ -227,7 +227,7 @@ app.post('/payments', authenticate(['admin', 'device']), async (req, res) => {
 });
 
 // Get own payments / outstanding balance (student only)
-app.get('/payments/my', authenticate(['team']), async (req, res) => {
+app.get('/payments/my', authenticate(['student']), async (req, res) => {
   const { data, error } = await supabase
     .from('payments')
     .select('*')
