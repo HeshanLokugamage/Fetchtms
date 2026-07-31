@@ -4,8 +4,15 @@ import { useNavigate } from 'react-router-dom';
 
 export default function ResourcePersonDashboard() {
   const [courses, setCourses] = useState([]);
+  const [sessions, setSessions] = useState([]);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+
+  const [sessCourseId, setSessCourseId] = useState('');
+  const [sessDate, setSessDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [venue, setVenue] = useState('');
 
   const [sessionId, setSessionId] = useState('');
   const [attStudentId, setAttStudentId] = useState('');
@@ -18,19 +25,59 @@ export default function ResourcePersonDashboard() {
 
   const navigate = useNavigate();
 
-  useEffect(() => {
+  const loadCourses = () => {
     const token = localStorage.getItem('token');
     const headers = { Authorization: `Bearer ${token}` };
-
     axios.get('http://localhost:4000/courses', { headers })
       .then(res => setCourses(res.data))
       .catch(err => setError(err.response?.data?.error || 'Failed to load courses'));
+  };
+
+  useEffect(() => {
+    loadCourses();
   }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('role');
     navigate('/login');
+  };
+
+  const handleCreateSession = async (e) => {
+    e.preventDefault();
+    setMessage('');
+    setError('');
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+      await axios.post('http://localhost:4000/course-sessions', {
+        course_id: sessCourseId,
+        session_date: sessDate,
+        start_time: startTime,
+        end_time: endTime,
+        venue
+      }, { headers });
+      setMessage('Session created successfully');
+      setSessDate('');
+      setStartTime('');
+      setEndTime('');
+      setVenue('');
+      if (sessCourseId) loadSessions(sessCourseId);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to create session');
+    }
+  };
+
+  const loadSessions = async (courseId) => {
+    if (!courseId) return;
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await axios.get(`http://localhost:4000/course-sessions/${courseId}`, { headers });
+      setSessions(res.data);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load sessions');
+    }
   };
 
   const handleMarkAttendance = async (e) => {
@@ -98,6 +145,56 @@ export default function ResourcePersonDashboard() {
               <td>{c.code}</td>
               <td>{c.name}</td>
               <td>{c.status}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <h3>Create Course Session</h3>
+      <form onSubmit={handleCreateSession} style={{ marginBottom: '20px' }}>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Course ID</label><br />
+          <input value={sessCourseId} onChange={e => setSessCourseId(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Session Date</label><br />
+          <input type="date" value={sessDate} onChange={e => setSessDate(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Start Time</label><br />
+          <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>End Time</label><br />
+          <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Venue</label><br />
+          <input value={venue} onChange={e => setVenue(e.target.value)} style={{ width: '100%', padding: '8px' }} />
+        </div>
+        <button type="submit" style={{ padding: '8px 16px' }}>Create Session</button>
+      </form>
+
+      <h3>View Sessions for a Course</h3>
+      <div style={{ marginBottom: '10px', display: 'flex', gap: '10px' }}>
+        <input
+          placeholder="Course ID"
+          onChange={e => loadSessions(e.target.value)}
+          style={{ flex: 1, padding: '8px' }}
+        />
+      </div>
+      <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '30px' }}>
+        <thead>
+          <tr><th>Session ID</th><th>Date</th><th>Start</th><th>End</th><th>Venue</th></tr>
+        </thead>
+        <tbody>
+          {sessions.map(s => (
+            <tr key={s.session_id}>
+              <td>{s.session_id}</td>
+              <td>{s.session_date}</td>
+              <td>{s.start_time}</td>
+              <td>{s.end_time}</td>
+              <td>{s.venue}</td>
             </tr>
           ))}
         </tbody>

@@ -146,6 +146,31 @@ app.patch('/courses/:id/publish', authenticate(['admin', 'device']), async (req,
   res.json({ message: 'Course published', course: data[0] });
 });
 
+// Create a course session (admin or device user only)
+app.post('/course-sessions', authenticate(['admin', 'device', 'resource_person']), async (req, res) => {
+  const { course_id, session_date, start_time, end_time, venue } = req.body;
+
+  const { data, error } = await supabase
+    .from('course_sessions')
+    .insert([{ course_id, session_date, start_time, end_time, venue }])
+    .select();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.status(201).json({ message: 'Session created', session: data[0] });
+});
+
+// Get sessions for a course (any logged-in user)
+app.get('/course-sessions/:courseId', authenticate([]), async (req, res) => {
+  const { courseId } = req.params;
+  const { data, error } = await supabase
+    .from('course_sessions')
+    .select('*')
+    .eq('course_id', courseId);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
 // Mark attendance (resource person, admin, or device user)
 app.post('/attendance', authenticate(['resource_person', 'admin', 'device']), async (req, res) => {
   const { session_id, student_id, status } = req.body;
