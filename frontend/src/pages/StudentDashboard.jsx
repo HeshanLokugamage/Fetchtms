@@ -14,19 +14,19 @@ export default function StudentDashboard() {
     const token = localStorage.getItem('token');
     const headers = { Authorization: `Bearer ${token}` };
 
-    axios.get('http://localhost:4000/attendance/my', { headers })
+    axios.get('https://fetchtms.onrender.com/attendance/my', { headers })
       .then(res => setAttendance(res.data))
       .catch(err => setError(err.response?.data?.error || 'Failed to load attendance'));
 
-    axios.get('http://localhost:4000/assessments/my', { headers })
+    axios.get('https://fetchtms.onrender.com/assessments/my', { headers })
       .then(res => setAssessments(res.data))
       .catch(err => setError(err.response?.data?.error || 'Failed to load assessments'));
 
-    axios.get('http://localhost:4000/payments/my', { headers })
+    axios.get('https://fetchtms.onrender.com/payments/my', { headers })
       .then(res => setPayments(res.data))
       .catch(err => setError(err.response?.data?.error || 'Failed to load payments'));
 
-    axios.get('http://localhost:4000/registrations/my', { headers })
+    axios.get('https://fetchtms.onrender.com/registrations/my', { headers })
       .then(res => setRegistrations(res.data))
       .catch(err => setError(err.response?.data?.error || 'Failed to load registrations'));
   }, []);

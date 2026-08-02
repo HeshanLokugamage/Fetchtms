@@ -62,13 +62,13 @@ export default function AdminDashboard() {
   };
 
   const loadStudents = () => {
-    axios.get('http://localhost:4000/students', { headers: getHeaders() })
+    axios.get('https://fetchtms.onrender.com/students', { headers: getHeaders() })
       .then(res => setStudents(res.data))
       .catch(err => setError(err.response?.data?.error || 'Failed to load students'));
   };
 
   const loadCourses = () => {
-    axios.get('http://localhost:4000/courses', { headers: getHeaders() })
+    axios.get('https://fetchtms.onrender.com/courses', { headers: getHeaders() })
       .then(res => setCourses(res.data))
       .catch(err => setError(err.response?.data?.error || 'Failed to load courses'));
   };
@@ -88,7 +88,7 @@ export default function AdminDashboard() {
     setMessage('');
     setError('');
     try {
-      await axios.patch(`http://localhost:4000/courses/${courseId}/publish`, {}, { headers: getHeaders() });
+      await axios.patch(`https://fetchtms.onrender.com/courses/${courseId}/publish`, {}, { headers: getHeaders() });
       setMessage('Course published successfully');
       loadCourses();
     } catch (err) {
@@ -101,7 +101,7 @@ export default function AdminDashboard() {
     setMessage('');
     setError('');
     try {
-      await axios.post('http://localhost:4000/students', {
+      await axios.post('https://fetchtms.onrender.com/students', {
         full_name: fullName,
         nic_passport: nicPassport,
         dob,
@@ -130,7 +130,7 @@ export default function AdminDashboard() {
     setMessage('');
     setError('');
     try {
-      await axios.post('http://localhost:4000/courses', {
+      await axios.post('https://fetchtms.onrender.com/courses', {
         code,
         name,
         category,
@@ -161,7 +161,7 @@ export default function AdminDashboard() {
     setMessage('');
     setError('');
     try {
-      await axios.post('http://localhost:4000/payments', {
+      await axios.post('https://fetchtms.onrender.com/payments', {
         student_id: payStudentId,
         course_id: payCourseId,
         amount: payAmount,
@@ -180,7 +180,7 @@ export default function AdminDashboard() {
     setMessage('');
     setError('');
     try {
-      const res = await axios.post('http://localhost:4000/certificates', {
+      const res = await axios.post('https://fetchtms.onrender.com/certificates', {
         student_id: certStudentId,
         course_id: certCourseId
       }, { headers: getHeaders() });
@@ -197,7 +197,7 @@ export default function AdminDashboard() {
     setMessage('');
     setError('');
     try {
-      await axios.post('http://localhost:4000/course-resource-persons', {
+      await axios.post('https://fetchtms.onrender.com/course-resource-persons', {
         course_id: assignCourseId,
         trainer_id: assignTrainerId
       }, { headers: getHeaders() });
@@ -214,7 +214,7 @@ export default function AdminDashboard() {
     setMessage('');
     setError('');
     try {
-      await axios.post('http://localhost:4000/registrations', {
+      await axios.post('https://fetchtms.onrender.com/registrations', {
         student_id: regStudentId,
         course_id: regCourseId
       }, { headers: getHeaders() });

@@ -33,7 +33,7 @@ export default function ResourcePersonDashboard() {
   };
 
   const loadCourses = () => {
-    axios.get('http://localhost:4000/courses', { headers: getHeaders() })
+    axios.get('https://fetchtms.onrender.com/courses', { headers: getHeaders() })
       .then(res => setCourses(res.data))
       .catch(err => setError(err.response?.data?.error || 'Failed to load courses'));
   };
@@ -53,7 +53,7 @@ export default function ResourcePersonDashboard() {
     setMessage('');
     setError('');
     try {
-      await axios.post('http://localhost:4000/course-sessions', {
+      await axios.post('https://fetchtms.onrender.com/course-sessions', {
         course_id: sessCourseId,
         session_date: sessDate,
         start_time: startTime,
@@ -74,7 +74,7 @@ export default function ResourcePersonDashboard() {
   const loadSessions = async (courseId) => {
     if (!courseId) return;
     try {
-      const res = await axios.get(`http://localhost:4000/course-sessions/${courseId}`, { headers: getHeaders() });
+      const res = await axios.get(`https://fetchtms.onrender.com/course-sessions/${courseId}`, { headers: getHeaders() });
       setSessions(res.data);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load sessions');
@@ -86,7 +86,7 @@ export default function ResourcePersonDashboard() {
     setMessage('');
     setError('');
     try {
-      await axios.post('http://localhost:4000/attendance', {
+      await axios.post('https://fetchtms.onrender.com/attendance', {
         session_id: sessionId,
         student_id: attStudentId,
         status: attStatus
@@ -104,7 +104,7 @@ export default function ResourcePersonDashboard() {
     setMessage('');
     setError('');
     try {
-      const res = await axios.post('http://localhost:4000/assessments', {
+      const res = await axios.post('https://fetchtms.onrender.com/assessments', {
         student_id: asStudentId,
         course_id: asCourseId,
         marks,
@@ -125,7 +125,7 @@ export default function ResourcePersonDashboard() {
     setMessage('');
     setError('');
     try {
-      await axios.patch(`http://localhost:4000/assessments/${publishAssessmentId}/publish`, {}, { headers: getHeaders() });
+      await axios.patch(`https://fetchtms.onrender.com/assessments/${publishAssessmentId}/publish`, {}, { headers: getHeaders() });
       setMessage('Marks published successfully');
       setPublishAssessmentId('');
     } catch (err) {
