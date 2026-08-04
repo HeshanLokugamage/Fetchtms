@@ -87,6 +87,39 @@ async function getStudentIdForUser(userId) {
   return data.student_id;
 }
 
+// Create a user login account (admin only) — hashes password and optionally links to a student
+app.post('/users', authenticate(['admin']), async (req, res) => {
+  const { username, password, role, student_id } = req.body;
+
+  const password_hash = await bcrypt.hash(password, 10);
+
+  const { data: newUser, error } = await supabase
+    .from('users')
+    .insert([{
+      username,
+      password_hash,
+      role,
+      force_password_reset: false,
+      is_active: true
+    }])
+    .select()
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  // If this is a student account and a student_id was provided, link them
+  if (role === 'student' && student_id) {
+    const { error: linkError } = await supabase
+      .from('students')
+      .update({ user_id: newUser.user_id })
+      .eq('student_id', student_id);
+
+    if (linkError) return res.status(500).json({ error: `User created but linking failed: ${linkError.message}` });
+  }
+
+  res.status(201).json({ message: 'User account created', user: { user_id: newUser.user_id, username: newUser.username, role: newUser.role } });
+});
+
 // Create a new student (admin or device user only)
 app.post('/students', authenticate(['admin', 'device']), async (req, res) => {
   const {
