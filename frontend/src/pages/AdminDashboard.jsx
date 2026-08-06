@@ -56,6 +56,12 @@ export default function AdminDashboard() {
   const [regStudentId, setRegStudentId] = useState('');
   const [regCourseId, setRegCourseId] = useState('');
 
+  // Create user account form state
+  const [newUsername, setNewUsername] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newUserRole, setNewUserRole] = useState('student');
+  const [newUserStudentId, setNewUserStudentId] = useState('');
+
   const getHeaders = () => {
     const token = localStorage.getItem('token');
     return { Authorization: `Bearer ${token}` };
@@ -223,6 +229,24 @@ export default function AdminDashboard() {
       setRegCourseId('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to register student for course');
+    }
+  };
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setMessage('');
+    setError('');
+    try {
+      await axios.post('https://fetchtms.onrender.com/users', {
+        username: newUsername,
+        password: newPassword,
+        role: newUserRole,
+        student_id: newUserRole === 'student' ? newUserStudentId : undefined
+      }, { headers: getHeaders() });
+      setMessage(`User account "${newUsername}" created successfully`);
+      setNewUsername(''); setNewPassword(''); setNewUserRole('student'); setNewUserStudentId('');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to create user account');
     }
   };
 
@@ -450,7 +474,7 @@ export default function AdminDashboard() {
       </form>
 
       <h3>Register Student for Course</h3>
-      <form onSubmit={handleRegisterForCourse}>
+      <form onSubmit={handleRegisterForCourse} style={{ marginBottom: '40px' }}>
         <div style={{ marginBottom: '10px' }}>
           <label>Student ID</label><br />
           <input value={regStudentId} onChange={e => setRegStudentId(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
@@ -460,6 +484,33 @@ export default function AdminDashboard() {
           <input value={regCourseId} onChange={e => setRegCourseId(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
         </div>
         <button type="submit" style={{ padding: '8px 16px' }}>Register</button>
+      </form>
+
+      <h3>Create User Account</h3>
+      <form onSubmit={handleCreateUser}>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Username</label><br />
+          <input value={newUsername} onChange={e => setNewUsername(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Password</label><br />
+          <input type="text" value={newPassword} onChange={e => setNewPassword(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Role</label><br />
+          <select value={newUserRole} onChange={e => setNewUserRole(e.target.value)} style={{ width: '100%', padding: '8px' }}>
+            <option value="student">Student</option>
+            <option value="resource_person">Resource Person</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        {newUserRole === 'student' && (
+          <div style={{ marginBottom: '10px' }}>
+            <label>Link to Student ID</label><br />
+            <input value={newUserStudentId} onChange={e => setNewUserStudentId(e.target.value)} style={{ width: '100%', padding: '8px' }} placeholder="e.g. 3 (from Students table above)" required />
+          </div>
+        )}
+        <button type="submit" style={{ padding: '8px 16px' }}>Create User Account</button>
       </form>
     </div>
   );

@@ -87,6 +87,18 @@ async function getStudentIdForUser(userId) {
   return data.student_id;
 }
 
+// Helper: get trainer_id linked to a logged-in user
+async function getTrainerIdForUser(userId) {
+  const { data, error } = await supabase
+    .from('resource_persons')
+    .select('trainer_id')
+    .eq('user_id', userId)
+    .single();
+
+  if (error || !data) return null;
+  return data.trainer_id;
+}
+
 // Create a user login account (admin only) — hashes password and optionally links to a student
 app.post('/users', authenticate(['admin']), async (req, res) => {
   const { username, password, role, student_id } = req.body;
@@ -118,6 +130,26 @@ app.post('/users', authenticate(['admin']), async (req, res) => {
   }
 
   res.status(201).json({ message: 'User account created', user: { user_id: newUser.user_id, username: newUser.username, role: newUser.role } });
+});
+
+// Create a resource person record (admin only) — optionally links to a user login
+app.post('/resource-persons', authenticate(['admin']), async (req, res) => {
+  const { name, title, organization, qualifications, user_id } = req.body;
+
+  const { data, error } = await supabase
+    .from('resource_persons')
+    .insert([{ name, title, organization, qualifications, user_id: user_id || null }])
+    .select();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.status(201).json({ message: 'Resource person created', resourcePerson: data[0] });
+});
+
+// Get all resource persons (admin only)
+app.get('/resource-persons', authenticate(['admin']), async (req, res) => {
+  const { data, error } = await supabase.from('resource_persons').select('*');
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
 });
 
 // Create a new student (admin or device user only)
@@ -311,12 +343,19 @@ app.get('/attendance/my', authenticate(['student']), async (req, res) => {
 app.post('/assessments', authenticate(['resource_person', 'admin']), async (req, res) => {
   const { student_id, course_id, marks, grade } = req.body;
 
+  let markedBy = req.user.userId;
+  if (req.user.role === 'resource_person') {
+    const trainerId = await getTrainerIdForUser(req.user.userId);
+    if (!trainerId) return res.status(404).json({ error: 'No resource person record linked to this account' });
+    markedBy = trainerId;
+  }
+
   const { data, error } = await supabase
     .from('assessments')
     .insert([{
       student_id, course_id, marks, grade,
       published: false,
-      marked_by: req.user.userId
+      marked_by: markedBy
     }])
     .select();
 
