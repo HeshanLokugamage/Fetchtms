@@ -111,7 +111,7 @@ app.post('/users', authenticate(['admin']), async (req, res) => {
       username,
       password_hash,
       role,
-      force_password_reset: false,
+      force_password_reset: true,
       is_active: true
     }])
     .select()
@@ -130,6 +130,33 @@ app.post('/users', authenticate(['admin']), async (req, res) => {
   }
 
   res.status(201).json({ message: 'User account created', user: { user_id: newUser.user_id, username: newUser.username, role: newUser.role } });
+});
+
+// Change own password (any logged-in user)
+app.patch('/users/change-password', authenticate([]), async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('user_id', req.user.userId)
+    .single();
+
+  if (error || !user) return res.status(404).json({ error: 'User not found' });
+
+  const validPassword = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!validPassword) return res.status(401).json({ error: 'Current password is incorrect' });
+
+  const newHash = await bcrypt.hash(newPassword, 10);
+
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ password_hash: newHash, force_password_reset: false })
+    .eq('user_id', req.user.userId);
+
+  if (updateError) return res.status(500).json({ error: updateError.message });
+
+  res.json({ message: 'Password changed successfully' });
 });
 
 // Create a resource person record (admin only) — optionally links to a user login
