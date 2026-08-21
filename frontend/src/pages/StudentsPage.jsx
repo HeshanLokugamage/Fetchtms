@@ -58,6 +58,7 @@ export default function StudentsPage() {
         <h2>Students</h2>
         <div>
           <button onClick={() => navigate('/admin/students/list')} style={{ padding: '8px 16px', marginRight: '10px' }}>View Students List</button>
+          <button onClick={() => navigate('/admin/students/search')} style={{ padding: '8px 16px', marginRight: '10px' }}>Search Student</button>
           <button onClick={() => navigate('/admin')} style={{ padding: '8px 16px' }}>← Back to Dashboard</button>
         </div>
       </div>

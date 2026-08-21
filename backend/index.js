@@ -453,6 +453,26 @@ app.get('/payments/my', authenticate(['student']), async (req, res) => {
   res.json(data);
 });
 
+// Get payments for a specific student (admin or device user only)
+app.get('/payments/student/:studentId', authenticate(['admin', 'device']), async (req, res) => {
+  const { studentId } = req.params;
+  const { data, error } = await supabase
+    .from('payments')
+    .select('*')
+    .eq('student_id', studentId);
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  const totalDebit = data.filter(p => p.type === 'debit').reduce((sum, p) => sum + Number(p.amount), 0);
+  const totalCredit = data.filter(p => p.type === 'credit').reduce((sum, p) => sum + Number(p.amount), 0);
+
+  res.json({
+    payments: data,
+    totalDebit,
+    totalCredit,
+    outstanding: totalDebit - totalCredit
+  });
+});
 // Total outstanding report (admin or device user)
 app.get('/reports/outstanding', authenticate(['admin', 'device']), async (req, res) => {
   const { data, error } = await supabase.from('payments').select('*');
