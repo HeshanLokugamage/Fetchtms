@@ -99,6 +99,33 @@ async function getTrainerIdForUser(userId) {
   return data.trainer_id;
 }
 
+// Change own password (any logged-in user)
+app.patch('/users/change-password', authenticate([]), async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  const { data: user, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('user_id', req.user.userId)
+    .single();
+
+  if (error || !user) return res.status(404).json({ error: 'User not found' });
+
+  const validPassword = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!validPassword) return res.status(401).json({ error: 'Current password is incorrect' });
+
+  const newHash = await bcrypt.hash(newPassword, 10);
+
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ password_hash: newHash, force_password_reset: false })
+    .eq('user_id', req.user.userId);
+
+  if (updateError) return res.status(500).json({ error: updateError.message });
+
+  res.json({ message: 'Password changed successfully' });
+});
+
 // Create a user login account (admin only) — hashes password and optionally links to a student
 app.post('/users', authenticate(['admin']), async (req, res) => {
   const { username, password, role, student_id } = req.body;
@@ -130,33 +157,6 @@ app.post('/users', authenticate(['admin']), async (req, res) => {
   }
 
   res.status(201).json({ message: 'User account created', user: { user_id: newUser.user_id, username: newUser.username, role: newUser.role } });
-});
-
-// Change own password (any logged-in user)
-app.patch('/users/change-password', authenticate([]), async (req, res) => {
-  const { currentPassword, newPassword } = req.body;
-
-  const { data: user, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('user_id', req.user.userId)
-    .single();
-
-  if (error || !user) return res.status(404).json({ error: 'User not found' });
-
-  const validPassword = await bcrypt.compare(currentPassword, user.password_hash);
-  if (!validPassword) return res.status(401).json({ error: 'Current password is incorrect' });
-
-  const newHash = await bcrypt.hash(newPassword, 10);
-
-  const { error: updateError } = await supabase
-    .from('users')
-    .update({ password_hash: newHash, force_password_reset: false })
-    .eq('user_id', req.user.userId);
-
-  if (updateError) return res.status(500).json({ error: updateError.message });
-
-  res.json({ message: 'Password changed successfully' });
 });
 
 // Create a resource person record (admin only) — optionally links to a user login
@@ -324,6 +324,13 @@ app.post('/registrations', authenticate(['admin', 'device']), async (req, res) =
     .select();
 
   if (error) return res.status(500).json({ error: error.message });
+
+  // Mark the student as active once they're registered for a course
+  await supabase
+    .from('students')
+    .update({ registration_status: 'active' })
+    .eq('student_id', student_id);
+
   res.status(201).json({ message: 'Student registered for course', registration: data[0] });
 });
 

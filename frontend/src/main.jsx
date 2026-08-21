@@ -6,8 +6,15 @@ import App from './App.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import AdminHome from './pages/AdminHome.jsx'
 import StudentsPage from './pages/StudentsPage.jsx'
+import StudentListPage from './pages/StudentListPage.jsx'
 import CoursesPage from './pages/CoursesPage.jsx'
-import OperationsPage from './pages/OperationsPage.jsx'
+import OperationsHome from './pages/OperationsHome.jsx'
+import PaymentPage from './pages/PaymentPage.jsx'
+import CertificatePage from './pages/CertificatePage.jsx'
+import AssignResourcePersonPage from './pages/AssignResourcePersonPage.jsx'
+import RegisterCoursePage from './pages/RegisterCoursePage.jsx'
+import CreateResourcePersonPage from './pages/CreateResourcePersonPage.jsx'
+import CreateUserPage from './pages/CreateUserPage.jsx'
 import ResourcePersonDashboard from './pages/ResourcePersonDashboard.jsx'
 import StudentDashboard from './pages/StudentDashboard.jsx'
 
@@ -26,12 +33,40 @@ createRoot(document.getElementById('root')).render(
           element={<ProtectedRoute role="admin"><StudentsPage /></ProtectedRoute>}
         />
         <Route
+          path="/admin/students/list"
+          element={<ProtectedRoute role="admin"><StudentListPage /></ProtectedRoute>}
+        />
+        <Route
           path="/admin/courses"
           element={<ProtectedRoute role="admin"><CoursesPage /></ProtectedRoute>}
         />
         <Route
           path="/admin/operations"
-          element={<ProtectedRoute role="admin"><OperationsPage /></ProtectedRoute>}
+          element={<ProtectedRoute role="admin"><OperationsHome /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/operations/payment"
+          element={<ProtectedRoute role="admin"><PaymentPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/operations/certificate"
+          element={<ProtectedRoute role="admin"><CertificatePage /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/operations/assign-resource-person"
+          element={<ProtectedRoute role="admin"><AssignResourcePersonPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/operations/register-course"
+          element={<ProtectedRoute role="admin"><RegisterCoursePage /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/operations/create-resource-person"
+          element={<ProtectedRoute role="admin"><CreateResourcePersonPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/operations/create-user"
+          element={<ProtectedRoute role="admin"><CreateUserPage /></ProtectedRoute>}
         />
         <Route
           path="/resource-person"

@@ -22,6 +22,11 @@ export default function OperationsPage() {
   const [regStudentId, setRegStudentId] = useState('');
   const [regCourseId, setRegCourseId] = useState('');
 
+  const [rpName, setRpName] = useState('');
+  const [rpTitle, setRpTitle] = useState('');
+  const [rpOrganization, setRpOrganization] = useState('');
+  const [rpQualifications, setRpQualifications] = useState('');
+
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState('student');
@@ -85,6 +90,20 @@ export default function OperationsPage() {
       setRegStudentId(''); setRegCourseId('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to register student for course');
+    }
+  };
+
+  const handleCreateResourcePerson = async (e) => {
+    e.preventDefault();
+    setMessage(''); setError('');
+    try {
+      const res = await axios.post('https://fetchtms.onrender.com/resource-persons', {
+        name: rpName, title: rpTitle, organization: rpOrganization, qualifications: rpQualifications
+      }, { headers: getHeaders() });
+      setMessage(`Resource person created! Trainer ID: ${res.data.resourcePerson.trainer_id}`);
+      setRpName(''); setRpTitle(''); setRpOrganization(''); setRpQualifications('');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to create resource person');
     }
   };
 
@@ -181,6 +200,27 @@ export default function OperationsPage() {
           <input value={regCourseId} onChange={e => setRegCourseId(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
         </div>
         <button type="submit" style={{ padding: '8px 16px' }}>Register</button>
+      </form>
+
+      <h3>Create Resource Person</h3>
+      <form onSubmit={handleCreateResourcePerson} style={{ marginBottom: '40px' }}>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Name</label><br />
+          <input value={rpName} onChange={e => setRpName(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Title</label><br />
+          <input value={rpTitle} onChange={e => setRpTitle(e.target.value)} style={{ width: '100%', padding: '8px' }} />
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Organization</label><br />
+          <input value={rpOrganization} onChange={e => setRpOrganization(e.target.value)} style={{ width: '100%', padding: '8px' }} />
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Qualifications</label><br />
+          <input value={rpQualifications} onChange={e => setRpQualifications(e.target.value)} style={{ width: '100%', padding: '8px' }} />
+        </div>
+        <button type="submit" style={{ padding: '8px 16px' }}>Create Resource Person</button>
       </form>
 
       <h3>Create User Account</h3>
