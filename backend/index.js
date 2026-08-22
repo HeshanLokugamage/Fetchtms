@@ -314,6 +314,42 @@ app.get('/registrations/my', authenticate(['student']), async (req, res) => {
   res.json(data);
 });
 
+// Get registrations for a specific student (admin or device user only)
+app.get('/registrations/student/:studentId', authenticate(['admin', 'device']), async (req, res) => {
+  const { studentId } = req.params;
+  const { data, error } = await supabase
+    .from('registrations')
+    .select('*')
+    .eq('student_id', studentId);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// Get assessments for a specific student (admin or device user only)
+app.get('/assessments/student/:studentId', authenticate(['admin', 'device']), async (req, res) => {
+  const { studentId } = req.params;
+  const { data, error } = await supabase
+    .from('assessments')
+    .select('*')
+    .eq('student_id', studentId);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// Get certificates for a specific student (admin or device user only)
+app.get('/certificates/student/:studentId', authenticate(['admin', 'device']), async (req, res) => {
+  const { studentId } = req.params;
+  const { data, error } = await supabase
+    .from('certificates')
+    .select('*')
+    .eq('student_id', studentId);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
 // Register a student for a course (admin or device user only)
 app.post('/registrations', authenticate(['admin', 'device']), async (req, res) => {
   const { student_id, course_id } = req.body;
@@ -473,6 +509,7 @@ app.get('/payments/student/:studentId', authenticate(['admin', 'device']), async
     outstanding: totalDebit - totalCredit
   });
 });
+
 // Total outstanding report (admin or device user)
 app.get('/reports/outstanding', authenticate(['admin', 'device']), async (req, res) => {
   const { data, error } = await supabase.from('payments').select('*');
