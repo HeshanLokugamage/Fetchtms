@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 export default function StudentSearchPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState([]);
-  const [paymentsByStudent, setPaymentsByStudent] = useState({});
+  const [detailsByStudent, setDetailsByStudent] = useState({});
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -19,7 +19,7 @@ export default function StudentSearchPage() {
     e.preventDefault();
     setError('');
     setSearched(true);
-    setPaymentsByStudent({});
+    setDetailsByStudent({});
     try {
       const res = await axios.get('https://fetchtms.onrender.com/students', { headers: getHeaders() });
       const term = searchTerm.trim().toLowerCase();
@@ -29,16 +29,32 @@ export default function StudentSearchPage() {
       );
       setResults(matches);
 
-      const paymentsMap = {};
+      const detailsMap = {};
       for (const s of matches) {
+        const detail = {};
         try {
           const payRes = await axios.get(`https://fetchtms.onrender.com/payments/student/${s.student_id}`, { headers: getHeaders() });
-          paymentsMap[s.student_id] = payRes.data;
-        } catch {
-          paymentsMap[s.student_id] = null;
-        }
+          detail.payments = payRes.data;
+        } catch { detail.payments = null; }
+
+        try {
+          const regRes = await axios.get(`https://fetchtms.onrender.com/registrations/student/${s.student_id}`, { headers: getHeaders() });
+          detail.registrations = regRes.data;
+        } catch { detail.registrations = null; }
+
+        try {
+          const assessRes = await axios.get(`https://fetchtms.onrender.com/assessments/student/${s.student_id}`, { headers: getHeaders() });
+          detail.assessments = assessRes.data;
+        } catch { detail.assessments = null; }
+
+        try {
+          const certRes = await axios.get(`https://fetchtms.onrender.com/certificates/student/${s.student_id}`, { headers: getHeaders() });
+          detail.certificates = certRes.data;
+        } catch { detail.certificates = null; }
+
+        detailsMap[s.student_id] = detail;
       }
-      setPaymentsByStudent(paymentsMap);
+      setDetailsByStudent(detailsMap);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to search students');
     }
@@ -69,7 +85,7 @@ export default function StudentSearchPage() {
       )}
 
       {results.map(s => {
-        const payInfo = paymentsByStudent[s.student_id];
+        const detail = detailsByStudent[s.student_id] || {};
         return (
           <div key={s.student_id} style={{ border: '1px solid #ccc', borderRadius: '6px', padding: '16px', marginBottom: '16px', textAlign: 'left' }}>
             <h3 style={{ marginTop: 0 }}>{s.full_name} (ID: {s.student_id})</h3>
@@ -85,34 +101,67 @@ export default function StudentSearchPage() {
             <p><strong>Emergency Contact:</strong> {s.emergency_contact || '—'}</p>
             <p><strong>Registration Status:</strong> {s.registration_status}</p>
 
+            <h4>Registered Courses</h4>
+            {detail.registrations && detail.registrations.length > 0 ? (
+              <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '12px' }}>
+                <thead><tr><th>Course ID</th><th>Status</th><th>Registered At</th></tr></thead>
+                <tbody>
+                  {detail.registrations.map(r => (
+                    <tr key={r.registration_id}>
+                      <td>{r.course_id}</td><td>{r.status}</td><td>{r.registered_at}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : <p>No course registrations yet.</p>}
+
+            <h4>Marks / Grades</h4>
+            {detail.assessments && detail.assessments.length > 0 ? (
+              <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '12px' }}>
+                <thead><tr><th>Course ID</th><th>Marks</th><th>Grade</th><th>Published</th></tr></thead>
+                <tbody>
+                  {detail.assessments.map(a => (
+                    <tr key={a.assessment_id}>
+                      <td>{a.course_id}</td><td>{a.marks}</td><td>{a.grade}</td><td>{a.published ? 'Yes' : 'No'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : <p>No marks recorded yet.</p>}
+
+            <h4>Certificates</h4>
+            {detail.certificates && detail.certificates.length > 0 ? (
+              <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '12px' }}>
+                <thead><tr><th>Course ID</th><th>Verification Code</th><th>Issue Date</th></tr></thead>
+                <tbody>
+                  {detail.certificates.map(c => (
+                    <tr key={c.certificate_id}>
+                      <td>{c.course_id}</td><td>{c.verification_code}</td><td>{c.issue_date}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : <p>No certificates issued yet.</p>}
+
             <h4>Payment Status</h4>
-            {payInfo ? (
+            {detail.payments ? (
               <>
-                <p><strong>Outstanding Balance:</strong> {payInfo.outstanding}</p>
-                <p><strong>Total Debit:</strong> {payInfo.totalDebit} | <strong>Total Credit:</strong> {payInfo.totalCredit}</p>
-                {payInfo.payments.length > 0 ? (
-                  <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse', width: '100%', marginTop: '8px' }}>
-                    <thead>
-                      <tr><th>Course ID</th><th>Type</th><th>Amount</th><th>Status</th></tr>
-                    </thead>
+                <p><strong>Outstanding Balance:</strong> {detail.payments.outstanding}</p>
+                <p><strong>Total Debit:</strong> {detail.payments.totalDebit} | <strong>Total Credit:</strong> {detail.payments.totalCredit}</p>
+                {detail.payments.payments.length > 0 ? (
+                  <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse', width: '100%' }}>
+                    <thead><tr><th>Course ID</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead>
                     <tbody>
-                      {payInfo.payments.map(p => (
+                      {detail.payments.payments.map(p => (
                         <tr key={p.payment_id}>
-                          <td>{p.course_id}</td>
-                          <td>{p.type}</td>
-                          <td>{p.amount}</td>
-                          <td>{p.status}</td>
+                          <td>{p.course_id}</td><td>{p.type}</td><td>{p.amount}</td><td>{p.status}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                ) : (
-                  <p>No payment records yet.</p>
-                )}
+                ) : <p>No payment records yet.</p>}
               </>
-            ) : (
-              <p>Payment info unavailable.</p>
-            )}
+            ) : <p>Payment info unavailable.</p>}
           </div>
         );
       })}
