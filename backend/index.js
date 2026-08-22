@@ -161,11 +161,11 @@ app.post('/users', authenticate(['admin']), async (req, res) => {
 
 // Create a resource person record (admin only) — optionally links to a user login
 app.post('/resource-persons', authenticate(['admin']), async (req, res) => {
-  const { name, title, organization, qualifications, user_id } = req.body;
+  const { name, title, organization, qualifications, user_id, available_dates, subjects, fee_per_hour } = req.body;
 
   const { data, error } = await supabase
     .from('resource_persons')
-    .insert([{ name, title, organization, qualifications, user_id: user_id || null }])
+    .insert([{ name, title, organization, qualifications, user_id: user_id || null, available_dates, subjects, fee_per_hour }])
     .select();
 
   if (error) return res.status(500).json({ error: error.message });
@@ -213,7 +213,7 @@ app.post('/courses', authenticate(['admin', 'device']), async (req, res) => {
   const {
     code, name, category, description, duration, sessions_count,
     training_mode, venue, start_date, end_date, max_participants,
-    fee, certificate_type
+    fee, certificate_type, level
   } = req.body;
 
   const { data, error } = await supabase
@@ -221,7 +221,7 @@ app.post('/courses', authenticate(['admin', 'device']), async (req, res) => {
     .insert([{
       code, name, category, description, duration, sessions_count,
       training_mode, venue, start_date, end_date, max_participants,
-      fee, certificate_type,
+      fee, certificate_type, level,
       status: 'draft'
     }])
     .select();
