@@ -11,6 +11,9 @@ export default function CreateResourcePersonPage() {
   const [rpTitle, setRpTitle] = useState('');
   const [rpOrganization, setRpOrganization] = useState('');
   const [rpQualifications, setRpQualifications] = useState('');
+  const [rpAvailableDates, setRpAvailableDates] = useState('');
+  const [rpSubjects, setRpSubjects] = useState('');
+  const [rpFeePerHour, setRpFeePerHour] = useState('');
 
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -22,10 +25,17 @@ export default function CreateResourcePersonPage() {
     setMessage(''); setError('');
     try {
       const res = await axios.post('https://fetchtms.onrender.com/resource-persons', {
-        name: rpName, title: rpTitle, organization: rpOrganization, qualifications: rpQualifications
+        name: rpName,
+        title: rpTitle,
+        organization: rpOrganization,
+        qualifications: rpQualifications,
+        available_dates: rpAvailableDates,
+        subjects: rpSubjects,
+        fee_per_hour: rpFeePerHour
       }, { headers: getHeaders() });
       setMessage(`Resource person created! Trainer ID: ${res.data.resourcePerson.trainer_id}`);
       setRpName(''); setRpTitle(''); setRpOrganization(''); setRpQualifications('');
+      setRpAvailableDates(''); setRpSubjects(''); setRpFeePerHour('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create resource person');
     }
@@ -57,6 +67,18 @@ export default function CreateResourcePersonPage() {
         <div style={{ marginBottom: '10px' }}>
           <label>Qualifications</label><br />
           <input value={rpQualifications} onChange={e => setRpQualifications(e.target.value)} style={{ width: '100%', padding: '8px' }} />
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Available Dates (e.g. Mon, Wed, Fri)</label><br />
+          <input value={rpAvailableDates} onChange={e => setRpAvailableDates(e.target.value)} style={{ width: '100%', padding: '8px' }} placeholder="Mon, Wed, Fri" />
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Subjects</label><br />
+          <input value={rpSubjects} onChange={e => setRpSubjects(e.target.value)} style={{ width: '100%', padding: '8px' }} placeholder="e.g. Web Development, Data Structures" />
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Fee Per Hour</label><br />
+          <input type="number" value={rpFeePerHour} onChange={e => setRpFeePerHour(e.target.value)} style={{ width: '100%', padding: '8px' }} />
         </div>
         <button type="submit" style={{ padding: '8px 16px' }}>Create Resource Person</button>
       </form>

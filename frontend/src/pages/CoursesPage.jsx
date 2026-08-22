@@ -21,6 +21,7 @@ export default function CoursesPage() {
   const [maxParticipants, setMaxParticipants] = useState('');
   const [fee, setFee] = useState('');
   const [certificateType, setCertificateType] = useState('');
+  const [level, setLevel] = useState('');
 
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -67,13 +68,15 @@ export default function CoursesPage() {
         end_date: endDate,
         max_participants: maxParticipants,
         fee,
-        certificate_type: certificateType
+        certificate_type: certificateType,
+        level
       }, { headers: getHeaders() });
 
       setMessage('Course created successfully');
       setCode(''); setName(''); setCategory(''); setDescription('');
       setDuration(''); setSessionsCount(''); setTrainingMode(''); setVenue('');
       setStartDate(''); setEndDate(''); setMaxParticipants(''); setFee(''); setCertificateType('');
+      setLevel('');
       loadCourses();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create course');
@@ -99,6 +102,18 @@ export default function CoursesPage() {
         <div style={{ marginBottom: '10px' }}>
           <label>Name</label><br />
           <input value={name} onChange={e => setName(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Level</label><br />
+          <select value={level} onChange={e => setLevel(e.target.value)} style={{ width: '100%', padding: '8px' }}>
+            <option value="">Select Level</option>
+            <option value="Certificate">Certificate</option>
+            <option value="Diploma">Diploma</option>
+            <option value="Degree">Degree</option>
+            <option value="NVQ Level 1">NVQ Level 1</option>
+            <option value="NVQ Level 2">NVQ Level 2</option>
+            <option value="NVQ Level 3">NVQ Level 3</option>
+          </select>
         </div>
         <div style={{ marginBottom: '10px' }}>
           <label>Category</label><br />
@@ -155,7 +170,7 @@ export default function CoursesPage() {
       <h3>Courses ({courses.length})</h3>
       <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%' }}>
         <thead>
-          <tr><th>ID</th><th>Code</th><th>Name</th><th>Status</th><th>Action</th></tr>
+          <tr><th>ID</th><th>Code</th><th>Name</th><th>Level</th><th>Status</th><th>Action</th></tr>
         </thead>
         <tbody>
           {courses.map(c => (
@@ -163,6 +178,7 @@ export default function CoursesPage() {
               <td>{c.course_id}</td>
               <td>{c.code}</td>
               <td>{c.name}</td>
+              <td>{c.level || '—'}</td>
               <td>{c.status}</td>
               <td>
                 {c.status !== 'published' ? (
