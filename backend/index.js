@@ -99,6 +99,18 @@ async function getTrainerIdForUser(userId) {
   return data.trainer_id;
 }
 
+// Helper: check if a coordinator is assigned to a course
+async function isCoordinatorForCourse(userId, courseId) {
+  const { data, error } = await supabase
+    .from('course_coordinators')
+    .select('*')
+    .eq('coordinator_id', userId)
+    .eq('course_id', courseId)
+    .single();
+
+  return !error && !!data;
+}
+
 // Change own password (any logged-in user)
 app.patch('/users/change-password', authenticate([]), async (req, res) => {
   const { currentPassword, newPassword } = req.body;
@@ -248,6 +260,55 @@ app.patch('/courses/:id/publish', authenticate(['admin', 'device']), async (req,
 
   if (error) return res.status(500).json({ error: error.message });
   res.json({ message: 'Course published', course: data[0] });
+});
+
+// Create a module for a course (admin only)
+app.post('/modules', authenticate(['admin']), async (req, res) => {
+  const { course_id, module_name, credits } = req.body;
+
+  const { data, error } = await supabase
+    .from('modules')
+    .insert([{ course_id, module_name, credits }])
+    .select();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.status(201).json({ message: 'Module created', module: data[0] });
+});
+
+// Get modules for a course (any logged-in user)
+app.get('/modules/:courseId', authenticate([]), async (req, res) => {
+  const { courseId } = req.params;
+  const { data, error } = await supabase
+    .from('modules')
+    .select('*')
+    .eq('course_id', courseId);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// Assign a coordinator to a course (admin only)
+app.post('/course-coordinators', authenticate(['admin']), async (req, res) => {
+  const { course_id, coordinator_id } = req.body;
+
+  const { data, error } = await supabase
+    .from('course_coordinators')
+    .insert([{ course_id, coordinator_id }])
+    .select();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.status(201).json({ message: 'Coordinator assigned', assignment: data[0] });
+});
+
+// Get courses assigned to the logged-in coordinator
+app.get('/course-coordinators/my', authenticate(['coordinator']), async (req, res) => {
+  const { data, error } = await supabase
+    .from('course_coordinators')
+    .select('*')
+    .eq('coordinator_id', req.user.userId);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
 });
 
 // Create a course session (admin, device, or resource person)
@@ -409,9 +470,18 @@ app.get('/attendance/my', authenticate(['student']), async (req, res) => {
   res.json(data);
 });
 
-// Enter marks (resource person or admin)
+// Helper: compute grade band from marks
+function computeGrade(marks) {
+  const m = Number(marks);
+  if (m < 50) return 'Fail';
+  if (m <= 60) return 'Pass';
+  if (m <= 69) return 'Excellent';
+  return 'Merit';
+}
+
+// Enter module marks (resource person or admin)
 app.post('/assessments', authenticate(['resource_person', 'admin']), async (req, res) => {
-  const { student_id, course_id, marks, grade } = req.body;
+  const { student_id, course_id, module_id, marks } = req.body;
 
   let markedBy = req.user.userId;
   if (req.user.role === 'resource_person') {
@@ -420,26 +490,98 @@ app.post('/assessments', authenticate(['resource_person', 'admin']), async (req,
     markedBy = trainerId;
   }
 
+  const grade = computeGrade(marks);
+
   const { data, error } = await supabase
     .from('assessments')
     .insert([{
-      student_id, course_id, marks, grade,
+      student_id, course_id, module_id, marks, grade,
       published: false,
+      reviewed: false,
       marked_by: markedBy
     }])
     .select();
 
   if (error) return res.status(500).json({ error: error.message });
-  res.status(201).json({ message: 'Marks recorded (not yet published)', assessment: data[0] });
+  res.status(201).json({ message: 'Marks recorded (pending review)', assessment: data[0] });
 });
 
-// Publish marks (admin or resource person)
-app.patch('/assessments/:id/publish', authenticate(['admin', 'resource_person']), async (req, res) => {
+// Get unreviewed assessments for a course (coordinator only, must be assigned to that course)
+app.get('/assessments/pending-review/:courseId', authenticate(['coordinator']), async (req, res) => {
+  const { courseId } = req.params;
+
+  const allowed = await isCoordinatorForCourse(req.user.userId, courseId);
+  if (!allowed) return res.status(403).json({ error: 'You are not assigned as coordinator for this course' });
+
+  const { data, error } = await supabase
+    .from('assessments')
+    .select('*')
+    .eq('course_id', courseId)
+    .eq('reviewed', false);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// Review and publish an assessment (coordinator only, must be assigned to that course)
+app.patch('/assessments/:id/review', authenticate(['coordinator']), async (req, res) => {
+  const { id } = req.params;
+
+  const { data: assessment, error: fetchError } = await supabase
+    .from('assessments')
+    .select('*')
+    .eq('assessment_id', id)
+    .single();
+
+  if (fetchError || !assessment) return res.status(404).json({ error: 'Assessment not found' });
+
+  const allowed = await isCoordinatorForCourse(req.user.userId, assessment.course_id);
+  if (!allowed) return res.status(403).json({ error: 'You are not assigned as coordinator for this course' });
+
+  const { data, error } = await supabase
+    .from('assessments')
+    .update({ reviewed: true, reviewed_by: req.user.userId, published: true })
+    .eq('assessment_id', id)
+    .select();
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  // Check if all modules for this course now have passing marks (>=50) and are reviewed
+  const { data: allModules } = await supabase
+    .from('modules')
+    .select('module_id')
+    .eq('course_id', assessment.course_id);
+
+  const { data: allAssessments } = await supabase
+    .from('assessments')
+    .select('*')
+    .eq('student_id', assessment.student_id)
+    .eq('course_id', assessment.course_id)
+    .eq('reviewed', true);
+
+  const moduleIdsWithPassingMarks = allAssessments
+    .filter(a => Number(a.marks) >= 50)
+    .map(a => a.module_id);
+
+  const allModulesCovered = allModules.every(m => moduleIdsWithPassingMarks.includes(m.module_id));
+
+  if (allModules.length > 0 && allModulesCovered) {
+    await supabase
+      .from('students')
+      .update({ registration_status: 'eligible_for_certificate' })
+      .eq('student_id', assessment.student_id);
+  }
+
+  res.json({ message: 'Marks reviewed and published', assessment: data[0] });
+});
+
+// Publish marks (admin can bypass review — kept for backward compatibility)
+app.patch('/assessments/:id/publish', authenticate(['admin']), async (req, res) => {
   const { id } = req.params;
 
   const { data, error } = await supabase
     .from('assessments')
-    .update({ published: true })
+    .update({ published: true, reviewed: true })
     .eq('assessment_id', id)
     .select();
 
@@ -529,16 +671,31 @@ app.get('/reports/outstanding', authenticate(['admin', 'device']), async (req, r
 app.post('/certificates', authenticate(['admin']), async (req, res) => {
   const { student_id, course_id } = req.body;
 
-  const { data: assessment, error: assessError } = await supabase
+  const { data: modules } = await supabase
+    .from('modules')
+    .select('module_id')
+    .eq('course_id', course_id);
+
+  const { data: assessments, error: assessError } = await supabase
     .from('assessments')
     .select('*')
     .eq('student_id', student_id)
     .eq('course_id', course_id)
     .eq('published', true)
-    .single();
+    .eq('reviewed', true);
 
-  if (assessError || !assessment) {
-    return res.status(400).json({ error: 'No published passing assessment found for this student/course' });
+  if (assessError) return res.status(500).json({ error: assessError.message });
+
+  if (modules && modules.length > 0) {
+    const passingModuleIds = assessments.filter(a => Number(a.marks) >= 50).map(a => a.module_id);
+    const allCovered = modules.every(m => passingModuleIds.includes(m.module_id));
+    if (!allCovered) {
+      return res.status(400).json({ error: 'Student has not passed all modules with reviewed, published marks' });
+    }
+  } else {
+    if (!assessments || assessments.length === 0) {
+      return res.status(400).json({ error: 'No published passing assessment found for this student/course' });
+    }
   }
 
   const { data: payments, error: payError } = await supabase
