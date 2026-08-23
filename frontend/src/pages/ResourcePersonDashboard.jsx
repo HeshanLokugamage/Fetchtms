@@ -5,6 +5,8 @@ import { useNavigate } from 'react-router-dom';
 export default function ResourcePersonDashboard() {
   const [courses, setCourses] = useState([]);
   const [sessions, setSessions] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [modules, setModules] = useState([]);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
@@ -20,10 +22,8 @@ export default function ResourcePersonDashboard() {
 
   const [asStudentId, setAsStudentId] = useState('');
   const [asCourseId, setAsCourseId] = useState('');
+  const [asModuleId, setAsModuleId] = useState('');
   const [marks, setMarks] = useState('');
-  const [grade, setGrade] = useState('');
-
-  const [publishAssessmentId, setPublishAssessmentId] = useState('');
 
   const navigate = useNavigate();
 
@@ -41,6 +41,16 @@ export default function ResourcePersonDashboard() {
   useEffect(() => {
     loadCourses();
   }, []);
+
+  useEffect(() => {
+    if (asCourseId) {
+      axios.get(`https://fetchtms.onrender.com/modules/${asCourseId}`, { headers: getHeaders() })
+        .then(res => setModules(res.data))
+        .catch(() => setModules([]));
+    } else {
+      setModules([]);
+    }
+  }, [asCourseId]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -107,29 +117,16 @@ export default function ResourcePersonDashboard() {
       const res = await axios.post('https://fetchtms.onrender.com/assessments', {
         student_id: asStudentId,
         course_id: asCourseId,
-        marks,
-        grade
+        module_id: asModuleId,
+        marks
       }, { headers: getHeaders() });
-      setMessage(`Marks recorded (not yet published). Assessment ID: ${res.data.assessment.assessment_id}`);
+      setMessage(`Marks recorded (pending coordinator review). Assessment ID: ${res.data.assessment.assessment_id}, Grade: ${res.data.assessment.grade}`);
       setAsStudentId('');
       setAsCourseId('');
+      setAsModuleId('');
       setMarks('');
-      setGrade('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to record marks');
-    }
-  };
-
-  const handlePublishMarks = async (e) => {
-    e.preventDefault();
-    setMessage('');
-    setError('');
-    try {
-      await axios.patch(`https://fetchtms.onrender.com/assessments/${publishAssessmentId}/publish`, {}, { headers: getHeaders() });
-      setMessage('Marks published successfully');
-      setPublishAssessmentId('');
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to publish marks');
     }
   };
 
@@ -163,8 +160,13 @@ export default function ResourcePersonDashboard() {
       <h3>Create Course Session</h3>
       <form onSubmit={handleCreateSession} style={{ marginBottom: '20px' }}>
         <div style={{ marginBottom: '10px' }}>
-          <label>Course ID</label><br />
-          <input value={sessCourseId} onChange={e => setSessCourseId(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+          <label>Course</label><br />
+          <select value={sessCourseId} onChange={e => setSessCourseId(e.target.value)} style={{ width: '100%', padding: '8px' }} required>
+            <option value="">Select Course</option>
+            {courses.map(c => (
+              <option key={c.course_id} value={c.course_id}>{c.code} — {c.name}</option>
+            ))}
+          </select>
         </div>
         <div style={{ marginBottom: '10px' }}>
           <label>Session Date</label><br />
@@ -187,11 +189,12 @@ export default function ResourcePersonDashboard() {
 
       <h3>View Sessions for a Course</h3>
       <div style={{ marginBottom: '10px', display: 'flex', gap: '10px' }}>
-        <input
-          placeholder="Course ID"
-          onChange={e => loadSessions(e.target.value)}
-          style={{ flex: 1, padding: '8px' }}
-        />
+        <select onChange={e => loadSessions(e.target.value)} style={{ flex: 1, padding: '8px' }}>
+          <option value="">Select Course</option>
+          {courses.map(c => (
+            <option key={c.course_id} value={c.course_id}>{c.code} — {c.name}</option>
+          ))}
+        </select>
       </div>
       <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '30px' }}>
         <thead>
@@ -230,34 +233,40 @@ export default function ResourcePersonDashboard() {
         <button type="submit" style={{ padding: '8px 16px' }}>Mark Attendance</button>
       </form>
 
-      <h3>Enter Assessment Marks</h3>
-      <form onSubmit={handleEnterMarks} style={{ marginBottom: '30px' }}>
+      <h3>Enter Module Marks</h3>
+      <form onSubmit={handleEnterMarks}>
         <div style={{ marginBottom: '10px' }}>
           <label>Student ID</label><br />
           <input value={asStudentId} onChange={e => setAsStudentId(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
         </div>
         <div style={{ marginBottom: '10px' }}>
-          <label>Course ID</label><br />
-          <input value={asCourseId} onChange={e => setAsCourseId(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+          <label>Course</label><br />
+          <select value={asCourseId} onChange={e => setAsCourseId(e.target.value)} style={{ width: '100%', padding: '8px' }} required>
+            <option value="">Select Course</option>
+            {courses.map(c => (
+              <option key={c.course_id} value={c.course_id}>{c.code} — {c.name}</option>
+            ))}
+          </select>
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Module</label><br />
+          <select value={asModuleId} onChange={e => setAsModuleId(e.target.value)} style={{ width: '100%', padding: '8px' }} required disabled={!asCourseId}>
+            <option value="">{asCourseId ? 'Select Module' : 'Select a Course first'}</option>
+            {modules.map(m => (
+              <option key={m.module_id} value={m.module_id}>{m.module_name} ({m.credits} credits)</option>
+            ))}
+          </select>
+          {asCourseId && modules.length === 0 && (
+            <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>
+              No modules found for this course yet — ask admin to create them.
+            </p>
+          )}
         </div>
         <div style={{ marginBottom: '10px' }}>
           <label>Marks</label><br />
           <input type="number" value={marks} onChange={e => setMarks(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
         </div>
-        <div style={{ marginBottom: '10px' }}>
-          <label>Grade</label><br />
-          <input value={grade} onChange={e => setGrade(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
-        </div>
         <button type="submit" style={{ padding: '8px 16px' }}>Submit Marks</button>
-      </form>
-
-      <h3>Publish Marks</h3>
-      <form onSubmit={handlePublishMarks}>
-        <div style={{ marginBottom: '10px' }}>
-          <label>Assessment ID</label><br />
-          <input value={publishAssessmentId} onChange={e => setPublishAssessmentId(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
-        </div>
-        <button type="submit" style={{ padding: '8px 16px' }}>Publish Marks</button>
       </form>
     </div>
   );
