@@ -18,6 +18,8 @@ import CreateResourcePersonPage from './pages/CreateResourcePersonPage.jsx'
 import CreateUserPage from './pages/CreateUserPage.jsx'
 import AssignCoordinatorPage from './pages/AssignCoordinatorPage.jsx'
 import ReceiptJournalPage from './pages/ReceiptJournalPage.jsx'
+import PaymentJournalPage from './pages/PaymentJournalPage.jsx'
+import ManageVendorsPage from './pages/ManageVendorsPage.jsx'
 import ResourcePersonDashboard from './pages/ResourcePersonDashboard.jsx'
 import StudentDashboard from './pages/StudentDashboard.jsx'
 import CoordinatorDashboard from './pages/CoordinatorDashboard.jsx'
@@ -83,6 +85,14 @@ createRoot(document.getElementById('root')).render(
         <Route
           path="/admin/operations/receipt-journal"
           element={<ProtectedRoute role="admin"><ReceiptJournalPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/operations/payment-journal"
+          element={<ProtectedRoute role="admin"><PaymentJournalPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/operations/manage-vendors"
+          element={<ProtectedRoute role="admin"><ManageVendorsPage /></ProtectedRoute>}
         />
         <Route
           path="/resource-person"
