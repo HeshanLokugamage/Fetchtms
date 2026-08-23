@@ -111,6 +111,263 @@ async function isCoordinatorForCourse(userId, courseId) {
   return !error && !!data;
 }
 
+// ===== ACCOUNTING MODULE =====
+
+// Get chart of accounts (admin only)
+app.get('/accounts', authenticate(['admin']), async (req, res) => {
+  const { data, error } = await supabase.from('chart_of_accounts').select('*').order('code');
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// Get payment methods (admin only)
+app.get('/payment-methods', authenticate(['admin']), async (req, res) => {
+  const { data, error } = await supabase.from('payment_methods').select('*');
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// Add a new payment method (admin only)
+app.post('/payment-methods', authenticate(['admin']), async (req, res) => {
+  const { name } = req.body;
+  const { data, error } = await supabase.from('payment_methods').insert([{ name }]).select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.status(201).json({ message: 'Payment method added', method: data[0] });
+});
+
+// Get vendors (admin only)
+app.get('/vendors', authenticate(['admin']), async (req, res) => {
+  const { data, error } = await supabase.from('vendors').select('*');
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// Add a new vendor (admin only)
+app.post('/vendors', authenticate(['admin']), async (req, res) => {
+  const { name } = req.body;
+  const { data, error } = await supabase.from('vendors').insert([{ name }]).select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.status(201).json({ message: 'Vendor added', vendor: data[0] });
+});
+
+// Helper: get account_id by code
+async function getAccountIdByCode(code) {
+  const { data, error } = await supabase
+    .from('chart_of_accounts')
+    .select('account_id')
+    .eq('code', code)
+    .single();
+  if (error || !data) return null;
+  return data.account_id;
+}
+
+// Create a Receipt Journal entry (student payment received) — admin only
+// Debit: Cash/Bank (based on payment method), Credit: Accounts Receivable — Students
+app.post('/journal/receipt', authenticate(['admin']), async (req, res) => {
+  const { entry_date, student_id, amount, payment_method_id, description } = req.body;
+
+  const cashAccountId = await getAccountIdByCode('1000');
+  const arAccountId = await getAccountIdByCode('1100');
+
+  if (!cashAccountId || !arAccountId) {
+    return res.status(500).json({ error: 'Required chart of accounts entries not found (1000 Cash, 1100 AR-Students)' });
+  }
+
+  const { data: entry, error: entryError } = await supabase
+    .from('journal_entries')
+    .insert([{
+      entry_date,
+      description: description || 'Student payment receipt',
+      entry_type: 'receipt',
+      created_by: req.user.userId,
+      reversed: false
+    }])
+    .select()
+    .single();
+
+  if (entryError) return res.status(500).json({ error: entryError.message });
+
+  const { error: linesError } = await supabase
+    .from('journal_lines')
+    .insert([
+      { entry_id: entry.entry_id, account_id: cashAccountId, debit_amount: amount, credit_amount: 0, student_id },
+      { entry_id: entry.entry_id, account_id: arAccountId, debit_amount: 0, credit_amount: amount, student_id }
+    ]);
+
+  if (linesError) return res.status(500).json({ error: linesError.message });
+
+  res.status(201).json({ message: 'Receipt recorded', entry });
+});
+
+// Create a Payment Journal entry (company payment made) — admin only
+// Debit: expense/asset account (based on category), Credit: Cash/Bank
+app.post('/journal/payment', authenticate(['admin']), async (req, res) => {
+  const { entry_date, category, vendor_id, amount, payment_method_id, description } = req.body;
+
+  // Map category to account code
+  const categoryToCode = {
+    'fixed_assets': '1500',
+    'other_purchases': '5100',
+    'resource_person_payment': '5000'
+  };
+  const debitCode = categoryToCode[category];
+  if (!debitCode) return res.status(400).json({ error: 'Invalid category' });
+
+  const debitAccountId = await getAccountIdByCode(debitCode);
+  const cashAccountId = await getAccountIdByCode('1000');
+
+  if (!debitAccountId || !cashAccountId) {
+    return res.status(500).json({ error: 'Required chart of accounts entries not found' });
+  }
+
+  const { data: entry, error: entryError } = await supabase
+    .from('journal_entries')
+    .insert([{
+      entry_date,
+      description: description || `Payment - ${category}`,
+      entry_type: 'payment',
+      created_by: req.user.userId,
+      reversed: false
+    }])
+    .select()
+    .single();
+
+  if (entryError) return res.status(500).json({ error: entryError.message });
+
+  const { error: linesError } = await supabase
+    .from('journal_lines')
+    .insert([
+      { entry_id: entry.entry_id, account_id: debitAccountId, debit_amount: amount, credit_amount: 0, vendor_id },
+      { entry_id: entry.entry_id, account_id: cashAccountId, debit_amount: 0, credit_amount: amount, vendor_id }
+    ]);
+
+  if (linesError) return res.status(500).json({ error: linesError.message });
+
+  res.status(201).json({ message: 'Payment recorded', entry });
+});
+
+// Create a General Journal entry (manual, any two accounts) — admin only
+app.post('/journal/general', authenticate(['admin']), async (req, res) => {
+  const { entry_date, description, lines } = req.body;
+  // lines: [{ account_id, debit_amount, credit_amount }, ...]
+
+  if (!lines || lines.length < 2) {
+    return res.status(400).json({ error: 'At least two lines required for a journal entry' });
+  }
+
+  const totalDebit = lines.reduce((sum, l) => sum + Number(l.debit_amount || 0), 0);
+  const totalCredit = lines.reduce((sum, l) => sum + Number(l.credit_amount || 0), 0);
+
+  if (totalDebit !== totalCredit) {
+    return res.status(400).json({ error: `Entry does not balance: Debit ${totalDebit} vs Credit ${totalCredit}` });
+  }
+
+  const { data: entry, error: entryError } = await supabase
+    .from('journal_entries')
+    .insert([{
+      entry_date,
+      description,
+      entry_type: 'general',
+      created_by: req.user.userId,
+      reversed: false
+    }])
+    .select()
+    .single();
+
+  if (entryError) return res.status(500).json({ error: entryError.message });
+
+  const linesToInsert = lines.map(l => ({
+    entry_id: entry.entry_id,
+    account_id: l.account_id,
+    debit_amount: l.debit_amount || 0,
+    credit_amount: l.credit_amount || 0
+  }));
+
+  const { error: linesError } = await supabase.from('journal_lines').insert(linesToInsert);
+  if (linesError) return res.status(500).json({ error: linesError.message });
+
+  res.status(201).json({ message: 'General journal entry recorded', entry });
+});
+
+// Get all journal entries with their lines (admin only)
+app.get('/journal/entries', authenticate(['admin']), async (req, res) => {
+  const { data: entries, error } = await supabase
+    .from('journal_entries')
+    .select('*')
+    .order('entry_date', { ascending: false });
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(entries);
+});
+
+// Get lines for a specific journal entry (admin only)
+app.get('/journal/entries/:id/lines', authenticate(['admin']), async (req, res) => {
+  const { id } = req.params;
+  const { data, error } = await supabase
+    .from('journal_lines')
+    .select('*')
+    .eq('entry_id', id);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// Reverse a journal entry (admin only) — creates a new entry with swapped debit/credit
+app.post('/journal/entries/:id/reverse', authenticate(['admin']), async (req, res) => {
+  const { id } = req.params;
+
+  const { data: originalEntry, error: fetchError } = await supabase
+    .from('journal_entries')
+    .select('*')
+    .eq('entry_id', id)
+    .single();
+
+  if (fetchError || !originalEntry) return res.status(404).json({ error: 'Journal entry not found' });
+  if (originalEntry.reversed) return res.status(400).json({ error: 'This entry has already been reversed' });
+
+  const { data: originalLines, error: linesFetchError } = await supabase
+    .from('journal_lines')
+    .select('*')
+    .eq('entry_id', id);
+
+  if (linesFetchError) return res.status(500).json({ error: linesFetchError.message });
+
+  const { data: reversalEntry, error: reversalError } = await supabase
+    .from('journal_entries')
+    .insert([{
+      entry_date: new Date().toISOString().split('T')[0],
+      description: `Reversal of entry #${id}: ${originalEntry.description}`,
+      entry_type: originalEntry.entry_type,
+      created_by: req.user.userId,
+      reversed: false
+    }])
+    .select()
+    .single();
+
+  if (reversalError) return res.status(500).json({ error: reversalError.message });
+
+  const reversalLines = originalLines.map(l => ({
+    entry_id: reversalEntry.entry_id,
+    account_id: l.account_id,
+    debit_amount: l.credit_amount,
+    credit_amount: l.debit_amount,
+    student_id: l.student_id,
+    vendor_id: l.vendor_id
+  }));
+
+  const { error: reversalLinesError } = await supabase.from('journal_lines').insert(reversalLines);
+  if (reversalLinesError) return res.status(500).json({ error: reversalLinesError.message });
+
+  await supabase
+    .from('journal_entries')
+    .update({ reversed: true, reversed_by_entry_id: reversalEntry.entry_id })
+    .eq('entry_id', id);
+
+  res.json({ message: 'Entry reversed successfully', reversalEntry });
+});
+
+// ===== END ACCOUNTING MODULE =====
+
 // Get all users (admin only) — for populating name-based dropdowns; excludes password_hash
 app.get('/users', authenticate(['admin']), async (req, res) => {
   const { data, error } = await supabase
@@ -168,7 +425,6 @@ app.post('/users', authenticate(['admin']), async (req, res) => {
 
   if (error) return res.status(500).json({ error: error.message });
 
-  // If this is a student account and a student_id was provided, link them
   if (role === 'student' && student_id) {
     const { error: linkError } = await supabase
       .from('students')
@@ -432,7 +688,6 @@ app.post('/registrations', authenticate(['admin', 'device']), async (req, res) =
 
   if (error) return res.status(500).json({ error: error.message });
 
-  // Mark the student as active once they're registered for a course
   await supabase
     .from('students')
     .update({ registration_status: 'active' })
@@ -556,7 +811,6 @@ app.patch('/assessments/:id/review', authenticate(['coordinator']), async (req, 
 
   if (error) return res.status(500).json({ error: error.message });
 
-  // Check if all modules for this course now have passing marks (>=50) and are reviewed
   const { data: allModules } = await supabase
     .from('modules')
     .select('module_id')
