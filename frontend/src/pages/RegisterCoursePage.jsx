@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -7,6 +7,8 @@ export default function RegisterCoursePage() {
   const [message, setMessage] = useState('');
   const navigate = useNavigate();
 
+  const [students, setStudents] = useState([]);
+  const [courses, setCourses] = useState([]);
   const [regStudentId, setRegStudentId] = useState('');
   const [regCourseId, setRegCourseId] = useState('');
 
@@ -14,6 +16,16 @@ export default function RegisterCoursePage() {
     const token = localStorage.getItem('token');
     return { Authorization: `Bearer ${token}` };
   };
+
+  useEffect(() => {
+    axios.get('https://fetchtms.onrender.com/students', { headers: getHeaders() })
+      .then(res => setStudents(res.data))
+      .catch(() => {});
+
+    axios.get('https://fetchtms.onrender.com/courses', { headers: getHeaders() })
+      .then(res => setCourses(res.data))
+      .catch(() => {});
+  }, []);
 
   const handleRegisterForCourse = async (e) => {
     e.preventDefault();
@@ -41,12 +53,26 @@ export default function RegisterCoursePage() {
 
       <form onSubmit={handleRegisterForCourse}>
         <div style={{ marginBottom: '10px' }}>
-          <label>Student ID</label><br />
-          <input value={regStudentId} onChange={e => setRegStudentId(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+          <label>Student</label><br />
+          <select value={regStudentId} onChange={e => setRegStudentId(e.target.value)} style={{ width: '100%', padding: '8px' }} required>
+            <option value="">Select Student</option>
+            {students.map(s => (
+              <option key={s.student_id} value={s.student_id}>
+                {s.full_name}
+              </option>
+            ))}
+          </select>
         </div>
         <div style={{ marginBottom: '10px' }}>
-          <label>Course ID</label><br />
-          <input value={regCourseId} onChange={e => setRegCourseId(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+          <label>Course</label><br />
+          <select value={regCourseId} onChange={e => setRegCourseId(e.target.value)} style={{ width: '100%', padding: '8px' }} required>
+            <option value="">Select Course</option>
+            {courses.map(c => (
+              <option key={c.course_id} value={c.course_id}>
+                {c.code} — {c.name}
+              </option>
+            ))}
+          </select>
         </div>
         <button type="submit" style={{ padding: '8px 16px' }}>Register</button>
       </form>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -7,6 +7,8 @@ export default function AssignResourcePersonPage() {
   const [message, setMessage] = useState('');
   const navigate = useNavigate();
 
+  const [courses, setCourses] = useState([]);
+  const [resourcePersons, setResourcePersons] = useState([]);
   const [assignCourseId, setAssignCourseId] = useState('');
   const [assignTrainerId, setAssignTrainerId] = useState('');
 
@@ -14,6 +16,16 @@ export default function AssignResourcePersonPage() {
     const token = localStorage.getItem('token');
     return { Authorization: `Bearer ${token}` };
   };
+
+  useEffect(() => {
+    axios.get('https://fetchtms.onrender.com/courses', { headers: getHeaders() })
+      .then(res => setCourses(res.data))
+      .catch(() => {});
+
+    axios.get('https://fetchtms.onrender.com/resource-persons', { headers: getHeaders() })
+      .then(res => setResourcePersons(res.data))
+      .catch(() => {});
+  }, []);
 
   const handleAssignResourcePerson = async (e) => {
     e.preventDefault();
@@ -41,12 +53,26 @@ export default function AssignResourcePersonPage() {
 
       <form onSubmit={handleAssignResourcePerson}>
         <div style={{ marginBottom: '10px' }}>
-          <label>Course ID</label><br />
-          <input value={assignCourseId} onChange={e => setAssignCourseId(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+          <label>Course</label><br />
+          <select value={assignCourseId} onChange={e => setAssignCourseId(e.target.value)} style={{ width: '100%', padding: '8px' }} required>
+            <option value="">Select Course</option>
+            {courses.map(c => (
+              <option key={c.course_id} value={c.course_id}>
+                {c.code} — {c.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div style={{ marginBottom: '10px' }}>
-          <label>Trainer ID</label><br />
-          <input value={assignTrainerId} onChange={e => setAssignTrainerId(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+          <label>Resource Person</label><br />
+          <select value={assignTrainerId} onChange={e => setAssignTrainerId(e.target.value)} style={{ width: '100%', padding: '8px' }} required>
+            <option value="">Select Resource Person</option>
+            {resourcePersons.map(rp => (
+              <option key={rp.trainer_id} value={rp.trainer_id}>
+                {rp.name}
+              </option>
+            ))}
+          </select>
         </div>
         <button type="submit" style={{ padding: '8px 16px' }}>Assign</button>
       </form>

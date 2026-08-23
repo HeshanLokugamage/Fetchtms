@@ -22,8 +22,9 @@ export default function AssignCoordinatorPage() {
       .then(res => setCourses(res.data))
       .catch(() => {});
 
-    // Fetch all users to filter coordinators (reuses the students/resource-persons pattern isn't available for users list,
-    // so we ask the admin to note this: we don't yet have a GET /users route)
+    axios.get('https://fetchtms.onrender.com/users', { headers: getHeaders() })
+      .then(res => setCoordinators(res.data.filter(u => u.role === 'coordinator')))
+      .catch(() => {});
   }, []);
 
   const handleAssignCoordinator = async (e) => {
@@ -59,17 +60,26 @@ export default function AssignCoordinatorPage() {
             <option value="">Select Course</option>
             {courses.map(c => (
               <option key={c.course_id} value={c.course_id}>
-                {c.code} — {c.name} (ID: {c.course_id})
+                {c.code} — {c.name}
               </option>
             ))}
           </select>
         </div>
         <div style={{ marginBottom: '10px' }}>
-          <label>Coordinator User ID</label><br />
-          <input value={coordinatorId} onChange={e => setCoordinatorId(e.target.value)} style={{ width: '100%', padding: '8px' }} placeholder="Enter user_id from Supabase users table" required />
-          <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>
-            (A dropdown of coordinator names requires a new backend route — let me know if you'd like this added)
-          </p>
+          <label>Coordinator</label><br />
+          <select value={coordinatorId} onChange={e => setCoordinatorId(e.target.value)} style={{ width: '100%', padding: '8px' }} required>
+            <option value="">Select Coordinator</option>
+            {coordinators.map(u => (
+              <option key={u.user_id} value={u.user_id}>
+                {u.username}
+              </option>
+            ))}
+          </select>
+          {coordinators.length === 0 && (
+            <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>
+              No coordinator accounts found. Create one first via Create User Account.
+            </p>
+          )}
         </div>
         <button type="submit" style={{ padding: '8px 16px' }}>Assign</button>
       </form>
