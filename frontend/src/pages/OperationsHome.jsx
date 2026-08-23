@@ -35,6 +35,7 @@ export default function OperationsHome() {
       <button style={linkStyle} onClick={() => navigate('/admin/operations/receipt-journal')}>🧾 Receipt Journal</button>
       <button style={linkStyle} onClick={() => navigate('/admin/operations/payment-journal')}>💸 Payment Journal</button>
       <button style={linkStyle} onClick={() => navigate('/admin/operations/manage-vendors')}>🏢 Manage Vendors</button>
+      <button style={linkStyle} onClick={() => navigate('/admin/operations/general-journal')}>📖 General Journal Entry</button>
     </div>
   );
 }
