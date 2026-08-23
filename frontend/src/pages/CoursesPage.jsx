@@ -23,6 +23,10 @@ export default function CoursesPage() {
   const [certificateType, setCertificateType] = useState('');
   const [level, setLevel] = useState('');
 
+  const [moduleCourseId, setModuleCourseId] = useState('');
+  const [moduleName, setModuleName] = useState('');
+  const [moduleCredits, setModuleCredits] = useState('');
+
   const getHeaders = () => {
     const token = localStorage.getItem('token');
     return { Authorization: `Bearer ${token}` };
@@ -80,6 +84,23 @@ export default function CoursesPage() {
       loadCourses();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create course');
+    }
+  };
+
+  const handleCreateModule = async (e) => {
+    e.preventDefault();
+    setMessage('');
+    setError('');
+    try {
+      await axios.post('https://fetchtms.onrender.com/modules', {
+        course_id: moduleCourseId,
+        module_name: moduleName,
+        credits: moduleCredits
+      }, { headers: getHeaders() });
+      setMessage('Module created successfully');
+      setModuleCourseId(''); setModuleName(''); setModuleCredits('');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to create module');
     }
   };
 
@@ -168,7 +189,7 @@ export default function CoursesPage() {
       </form>
 
       <h3>Courses ({courses.length})</h3>
-      <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%' }}>
+      <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '40px' }}>
         <thead>
           <tr><th>ID</th><th>Code</th><th>Name</th><th>Level</th><th>Status</th><th>Action</th></tr>
         </thead>
@@ -193,6 +214,23 @@ export default function CoursesPage() {
           ))}
         </tbody>
       </table>
+
+      <h3>Create Module for a Course</h3>
+      <form onSubmit={handleCreateModule}>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Course ID</label><br />
+          <input value={moduleCourseId} onChange={e => setModuleCourseId(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Module Name</label><br />
+          <input value={moduleName} onChange={e => setModuleName(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Credits</label><br />
+          <input type="number" value={moduleCredits} onChange={e => setModuleCredits(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+        </div>
+        <button type="submit" style={{ padding: '8px 16px' }}>Create Module</button>
+      </form>
     </div>
   );
 }

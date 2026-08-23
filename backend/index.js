@@ -111,6 +111,16 @@ async function isCoordinatorForCourse(userId, courseId) {
   return !error && !!data;
 }
 
+// Get all users (admin only) — for populating name-based dropdowns; excludes password_hash
+app.get('/users', authenticate(['admin']), async (req, res) => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('user_id, username, role, is_active');
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
 // Change own password (any logged-in user)
 app.patch('/users/change-password', authenticate([]), async (req, res) => {
   const { currentPassword, newPassword } = req.body;

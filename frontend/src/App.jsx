@@ -18,6 +18,7 @@ function App() {
   const goToDashboard = (role) => {
     if (role === 'admin') navigate('/admin');
     else if (role === 'resource_person') navigate('/resource-person');
+    else if (role === 'coordinator') navigate('/coordinator');
     else navigate('/student');
   };
 
@@ -69,10 +70,6 @@ function App() {
       setPasswordError(error.response?.data?.error || 'Failed to change password');
     }
   };
-
-  if (showPasswordPrompt && !newPassword && confirmPassword === '' && currentPassword && !passwordError) {
-    // Initial yes/no prompt
-  }
 
   return (
     <div style={{ maxWidth: '400px', margin: '100px auto', fontFamily: 'sans-serif' }}>

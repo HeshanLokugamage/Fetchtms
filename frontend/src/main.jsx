@@ -16,8 +16,10 @@ import AssignResourcePersonPage from './pages/AssignResourcePersonPage.jsx'
 import RegisterCoursePage from './pages/RegisterCoursePage.jsx'
 import CreateResourcePersonPage from './pages/CreateResourcePersonPage.jsx'
 import CreateUserPage from './pages/CreateUserPage.jsx'
+import AssignCoordinatorPage from './pages/AssignCoordinatorPage.jsx'
 import ResourcePersonDashboard from './pages/ResourcePersonDashboard.jsx'
 import StudentDashboard from './pages/StudentDashboard.jsx'
+import CoordinatorDashboard from './pages/CoordinatorDashboard.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -74,12 +76,20 @@ createRoot(document.getElementById('root')).render(
           element={<ProtectedRoute role="admin"><CreateUserPage /></ProtectedRoute>}
         />
         <Route
+          path="/admin/operations/assign-coordinator"
+          element={<ProtectedRoute role="admin"><AssignCoordinatorPage /></ProtectedRoute>}
+        />
+        <Route
           path="/resource-person"
           element={<ProtectedRoute role="resource_person"><ResourcePersonDashboard /></ProtectedRoute>}
         />
         <Route
           path="/student"
           element={<ProtectedRoute role="student"><StudentDashboard /></ProtectedRoute>}
+        />
+        <Route
+          path="/coordinator"
+          element={<ProtectedRoute role="coordinator"><CoordinatorDashboard /></ProtectedRoute>}
         />
       </Routes>
     </BrowserRouter>

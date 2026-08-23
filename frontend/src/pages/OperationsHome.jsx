@@ -31,6 +31,7 @@ export default function OperationsHome() {
       <button style={linkStyle} onClick={() => navigate('/admin/operations/register-course')}>📋 Register Student for Course</button>
       <button style={linkStyle} onClick={() => navigate('/admin/operations/create-resource-person')}>👤 Create Resource Person</button>
       <button style={linkStyle} onClick={() => navigate('/admin/operations/create-user')}>🔑 Create User Account</button>
+      <button style={linkStyle} onClick={() => navigate('/admin/operations/assign-coordinator')}>🧑‍🏫 Assign Coordinator to Course</button>
     </div>
   );
 }

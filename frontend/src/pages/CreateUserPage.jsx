@@ -56,6 +56,8 @@ export default function CreateUserPage() {
           <select value={newUserRole} onChange={e => setNewUserRole(e.target.value)} style={{ width: '100%', padding: '8px' }}>
             <option value="student">Student</option>
             <option value="resource_person">Resource Person</option>
+            <option value="coordinator">Coordinator</option>
+            <option value="staff">Staff</option>
             <option value="admin">Admin</option>
           </select>
         </div>
