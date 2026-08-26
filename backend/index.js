@@ -55,7 +55,6 @@ app.post('/auth/login', async (req, res) => {
   });
 });
 
-// Middleware: verify JWT and check role
 function authenticate(allowedRoles = []) {
   return (req, res, next) => {
     const authHeader = req.headers['authorization'];
@@ -75,7 +74,6 @@ function authenticate(allowedRoles = []) {
   };
 }
 
-// Helper: get student_id linked to a logged-in user
 async function getStudentIdForUser(userId) {
   const { data, error } = await supabase
     .from('students')
@@ -87,7 +85,6 @@ async function getStudentIdForUser(userId) {
   return data.student_id;
 }
 
-// Helper: get trainer_id linked to a logged-in user
 async function getTrainerIdForUser(userId) {
   const { data, error } = await supabase
     .from('resource_persons')
@@ -99,7 +96,6 @@ async function getTrainerIdForUser(userId) {
   return data.trainer_id;
 }
 
-// Helper: check if a coordinator is assigned to a course
 async function isCoordinatorForCourse(userId, courseId) {
   const { data, error } = await supabase
     .from('course_coordinators')
@@ -113,21 +109,18 @@ async function isCoordinatorForCourse(userId, courseId) {
 
 // ===== ACCOUNTING MODULE =====
 
-// Get chart of accounts (admin only)
 app.get('/accounts', authenticate(['admin']), async (req, res) => {
   const { data, error } = await supabase.from('chart_of_accounts').select('*').order('code');
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
 
-// Get payment methods (admin only)
 app.get('/payment-methods', authenticate(['admin']), async (req, res) => {
   const { data, error } = await supabase.from('payment_methods').select('*');
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
 
-// Add a new payment method (admin only)
 app.post('/payment-methods', authenticate(['admin']), async (req, res) => {
   const { name } = req.body;
   const { data, error } = await supabase.from('payment_methods').insert([{ name }]).select();
@@ -135,14 +128,12 @@ app.post('/payment-methods', authenticate(['admin']), async (req, res) => {
   res.status(201).json({ message: 'Payment method added', method: data[0] });
 });
 
-// Get vendors (admin only)
 app.get('/vendors', authenticate(['admin']), async (req, res) => {
   const { data, error } = await supabase.from('vendors').select('*');
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
 
-// Add a new vendor (admin only)
 app.post('/vendors', authenticate(['admin']), async (req, res) => {
   const { name } = req.body;
   const { data, error } = await supabase.from('vendors').insert([{ name }]).select();
@@ -150,7 +141,6 @@ app.post('/vendors', authenticate(['admin']), async (req, res) => {
   res.status(201).json({ message: 'Vendor added', vendor: data[0] });
 });
 
-// Helper: get account_id by code
 async function getAccountIdByCode(code) {
   const { data, error } = await supabase
     .from('chart_of_accounts')
@@ -161,8 +151,6 @@ async function getAccountIdByCode(code) {
   return data.account_id;
 }
 
-// Create a Receipt Journal entry (student payment received) — admin only
-// Debit: Cash/Bank (based on payment method), Credit: Accounts Receivable — Students
 app.post('/journal/receipt', authenticate(['admin']), async (req, res) => {
   const { entry_date, student_id, amount, payment_method_id, description } = req.body;
 
@@ -199,12 +187,9 @@ app.post('/journal/receipt', authenticate(['admin']), async (req, res) => {
   res.status(201).json({ message: 'Receipt recorded', entry });
 });
 
-// Create a Payment Journal entry (company payment made) — admin only
-// Debit: expense/asset account (based on category), Credit: Cash/Bank
 app.post('/journal/payment', authenticate(['admin']), async (req, res) => {
-  const { entry_date, category, vendor_id, amount, payment_method_id, description } = req.body;
+  const { entry_date, category, vendor_id, resource_person_id, amount, payment_method_id, description } = req.body;
 
-  // Map category to account code
   const categoryToCode = {
     'fixed_assets': '1500',
     'other_purchases': '5100',
@@ -237,8 +222,8 @@ app.post('/journal/payment', authenticate(['admin']), async (req, res) => {
   const { error: linesError } = await supabase
     .from('journal_lines')
     .insert([
-      { entry_id: entry.entry_id, account_id: debitAccountId, debit_amount: amount, credit_amount: 0, vendor_id },
-      { entry_id: entry.entry_id, account_id: cashAccountId, debit_amount: 0, credit_amount: amount, vendor_id }
+      { entry_id: entry.entry_id, account_id: debitAccountId, debit_amount: amount, credit_amount: 0, vendor_id: vendor_id || null, resource_person_id: resource_person_id || null },
+      { entry_id: entry.entry_id, account_id: cashAccountId, debit_amount: 0, credit_amount: amount, vendor_id: vendor_id || null, resource_person_id: resource_person_id || null }
     ]);
 
   if (linesError) return res.status(500).json({ error: linesError.message });
@@ -246,10 +231,8 @@ app.post('/journal/payment', authenticate(['admin']), async (req, res) => {
   res.status(201).json({ message: 'Payment recorded', entry });
 });
 
-// Create a General Journal entry (manual, any two accounts) — admin only
 app.post('/journal/general', authenticate(['admin']), async (req, res) => {
   const { entry_date, description, lines } = req.body;
-  // lines: [{ account_id, debit_amount, credit_amount }, ...]
 
   if (!lines || lines.length < 2) {
     return res.status(400).json({ error: 'At least two lines required for a journal entry' });
@@ -289,7 +272,6 @@ app.post('/journal/general', authenticate(['admin']), async (req, res) => {
   res.status(201).json({ message: 'General journal entry recorded', entry });
 });
 
-// Get all journal entries with their lines (admin only)
 app.get('/journal/entries', authenticate(['admin']), async (req, res) => {
   const { data: entries, error } = await supabase
     .from('journal_entries')
@@ -300,7 +282,6 @@ app.get('/journal/entries', authenticate(['admin']), async (req, res) => {
   res.json(entries);
 });
 
-// Get lines for a specific journal entry (admin only)
 app.get('/journal/entries/:id/lines', authenticate(['admin']), async (req, res) => {
   const { id } = req.params;
   const { data, error } = await supabase
@@ -312,7 +293,6 @@ app.get('/journal/entries/:id/lines', authenticate(['admin']), async (req, res) 
   res.json(data);
 });
 
-// Reverse a journal entry (admin only) — creates a new entry with swapped debit/credit
 app.post('/journal/entries/:id/reverse', authenticate(['admin']), async (req, res) => {
   const { id } = req.params;
 
@@ -352,7 +332,8 @@ app.post('/journal/entries/:id/reverse', authenticate(['admin']), async (req, re
     debit_amount: l.credit_amount,
     credit_amount: l.debit_amount,
     student_id: l.student_id,
-    vendor_id: l.vendor_id
+    vendor_id: l.vendor_id,
+    resource_person_id: l.resource_person_id
   }));
 
   const { error: reversalLinesError } = await supabase.from('journal_lines').insert(reversalLines);
@@ -366,9 +347,157 @@ app.post('/journal/entries/:id/reverse', authenticate(['admin']), async (req, re
   res.json({ message: 'Entry reversed successfully', reversalEntry });
 });
 
+// Profit & Loss report (admin only)
+app.get('/reports/profit-loss', authenticate(['admin']), async (req, res) => {
+  const { from_date, to_date } = req.query;
+
+  const { data: accounts, error: accError } = await supabase
+    .from('chart_of_accounts')
+    .select('*')
+    .in('type', ['Income', 'Expense']);
+
+  if (accError) return res.status(500).json({ error: accError.message });
+
+  const { data: lines, error: linesError } = await supabase
+    .from('journal_lines')
+    .select('*, journal_entries!inner(entry_date, reversed)');
+
+  if (linesError) return res.status(500).json({ error: linesError.message });
+
+  const filteredLines = lines.filter(l => {
+    const d = l.journal_entries.entry_date;
+    if (from_date && d < from_date) return false;
+    if (to_date && d > to_date) return false;
+    return true;
+  });
+
+  const results = accounts.map(acc => {
+    const accLines = filteredLines.filter(l => l.account_id === acc.account_id);
+    const totalDebit = accLines.reduce((sum, l) => sum + Number(l.debit_amount), 0);
+    const totalCredit = accLines.reduce((sum, l) => sum + Number(l.credit_amount), 0);
+    const balance = acc.type === 'Income' ? (totalCredit - totalDebit) : (totalDebit - totalCredit);
+    return { account_id: acc.account_id, code: acc.code, name: acc.name, type: acc.type, balance };
+  });
+
+  const totalIncome = results.filter(r => r.type === 'Income').reduce((sum, r) => sum + r.balance, 0);
+  const totalExpense = results.filter(r => r.type === 'Expense').reduce((sum, r) => sum + r.balance, 0);
+  const netProfit = totalIncome - totalExpense;
+
+  res.json({ accounts: results, totalIncome, totalExpense, netProfit });
+});
+
+// Balance Sheet report (admin only)
+app.get('/reports/balance-sheet', authenticate(['admin']), async (req, res) => {
+  const { as_of_date } = req.query;
+
+  const { data: accounts, error: accError } = await supabase
+    .from('chart_of_accounts')
+    .select('*')
+    .in('type', ['Asset', 'Liability', 'Equity']);
+
+  if (accError) return res.status(500).json({ error: accError.message });
+
+  const { data: lines, error: linesError } = await supabase
+    .from('journal_lines')
+    .select('*, journal_entries!inner(entry_date, reversed)');
+
+  if (linesError) return res.status(500).json({ error: linesError.message });
+
+  const filteredLines = lines.filter(l => {
+    if (as_of_date && l.journal_entries.entry_date > as_of_date) return false;
+    return true;
+  });
+
+  const results = accounts.map(acc => {
+    const accLines = filteredLines.filter(l => l.account_id === acc.account_id);
+    const totalDebit = accLines.reduce((sum, l) => sum + Number(l.debit_amount), 0);
+    const totalCredit = accLines.reduce((sum, l) => sum + Number(l.credit_amount), 0);
+    const balance = (acc.type === 'Asset') ? (totalDebit - totalCredit) : (totalCredit - totalDebit);
+    return { account_id: acc.account_id, code: acc.code, name: acc.name, type: acc.type, balance };
+  });
+
+  const totalAssets = results.filter(r => r.type === 'Asset').reduce((sum, r) => sum + r.balance, 0);
+  const totalLiabilities = results.filter(r => r.type === 'Liability').reduce((sum, r) => sum + r.balance, 0);
+  const totalEquity = results.filter(r => r.type === 'Equity').reduce((sum, r) => sum + r.balance, 0);
+
+  res.json({ accounts: results, totalAssets, totalLiabilities, totalEquity });
+});
+
+// Outstanding report for a single student (admin or device user only)
+app.get('/reports/outstanding/student/:studentId', authenticate(['admin', 'device']), async (req, res) => {
+  const { studentId } = req.params;
+  const { data, error } = await supabase
+    .from('payments')
+    .select('*')
+    .eq('student_id', studentId);
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  const totalDebit = data.filter(p => p.type === 'debit').reduce((sum, p) => sum + Number(p.amount), 0);
+  const totalCredit = data.filter(p => p.type === 'credit').reduce((sum, p) => sum + Number(p.amount), 0);
+
+  res.json({
+    payments: data,
+    totalDebit,
+    totalCredit,
+    outstanding: totalDebit - totalCredit
+  });
+});
+
+// Student Balance Summary report (admin or device user only)
+app.get('/reports/student-balance-summary', authenticate(['admin', 'device']), async (req, res) => {
+  const { data: students, error: studentsError } = await supabase.from('students').select('*');
+  if (studentsError) return res.status(500).json({ error: studentsError.message });
+
+  const { data: payments, error: paymentsError } = await supabase.from('payments').select('*');
+  if (paymentsError) return res.status(500).json({ error: paymentsError.message });
+
+  const summary = students.map(s => {
+    const studentPayments = payments.filter(p => p.student_id === s.student_id);
+    const debit = studentPayments.filter(p => p.type === 'debit').reduce((sum, p) => sum + Number(p.amount), 0);
+    const credit = studentPayments.filter(p => p.type === 'credit').reduce((sum, p) => sum + Number(p.amount), 0);
+    return {
+      student_id: s.student_id,
+      full_name: s.full_name,
+      debit,
+      credit,
+      balance: debit - credit
+    };
+  });
+
+  res.json(summary);
+});
+
+// Resource Person Payment Summary report (admin only)
+app.get('/reports/resource-person-summary', authenticate(['admin']), async (req, res) => {
+  const { data: resourcePersons, error: rpError } = await supabase.from('resource_persons').select('*');
+  if (rpError) return res.status(500).json({ error: rpError.message });
+
+  const { data: lines, error: linesError } = await supabase
+    .from('journal_lines')
+    .select('*')
+    .not('resource_person_id', 'is', null);
+
+  if (linesError) return res.status(500).json({ error: linesError.message });
+
+  const summary = resourcePersons.map(rp => {
+    const rpLines = lines.filter(l => l.resource_person_id === rp.trainer_id);
+    const debit = rpLines.reduce((sum, l) => sum + Number(l.debit_amount), 0);
+    const credit = rpLines.reduce((sum, l) => sum + Number(l.credit_amount), 0);
+    return {
+      trainer_id: rp.trainer_id,
+      name: rp.name,
+      debit,
+      credit,
+      balance: debit - credit
+    };
+  });
+
+  res.json(summary);
+});
+
 // ===== END ACCOUNTING MODULE =====
 
-// Get all users (admin only) — for populating name-based dropdowns; excludes password_hash
 app.get('/users', authenticate(['admin']), async (req, res) => {
   const { data, error } = await supabase
     .from('users')
@@ -378,7 +507,6 @@ app.get('/users', authenticate(['admin']), async (req, res) => {
   res.json(data);
 });
 
-// Change own password (any logged-in user)
 app.patch('/users/change-password', authenticate([]), async (req, res) => {
   const { currentPassword, newPassword } = req.body;
 
@@ -405,7 +533,6 @@ app.patch('/users/change-password', authenticate([]), async (req, res) => {
   res.json({ message: 'Password changed successfully' });
 });
 
-// Create a user login account (admin only) — hashes password and optionally links to a student
 app.post('/users', authenticate(['admin']), async (req, res) => {
   const { username, password, role, student_id } = req.body;
 
@@ -437,7 +564,6 @@ app.post('/users', authenticate(['admin']), async (req, res) => {
   res.status(201).json({ message: 'User account created', user: { user_id: newUser.user_id, username: newUser.username, role: newUser.role } });
 });
 
-// Create a resource person record (admin only) — optionally links to a user login
 app.post('/resource-persons', authenticate(['admin']), async (req, res) => {
   const { name, title, organization, qualifications, user_id, available_dates, subjects, fee_per_hour } = req.body;
 
@@ -450,14 +576,12 @@ app.post('/resource-persons', authenticate(['admin']), async (req, res) => {
   res.status(201).json({ message: 'Resource person created', resourcePerson: data[0] });
 });
 
-// Get all resource persons (admin only)
 app.get('/resource-persons', authenticate(['admin']), async (req, res) => {
   const { data, error } = await supabase.from('resource_persons').select('*');
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
 
-// Create a new student (admin or device user only)
 app.post('/students', authenticate(['admin', 'device']), async (req, res) => {
   const {
     full_name, nic_passport, dob, gender, address,
@@ -479,14 +603,12 @@ app.post('/students', authenticate(['admin', 'device']), async (req, res) => {
   res.status(201).json({ message: 'Student registered successfully', student: data[0] });
 });
 
-// Get all students (admin or device user only)
 app.get('/students', authenticate(['admin', 'device']), async (req, res) => {
   const { data, error } = await supabase.from('students').select('*');
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
 
-// Create a new course (admin or device user only)
 app.post('/courses', authenticate(['admin', 'device']), async (req, res) => {
   const {
     code, name, category, description, duration, sessions_count,
@@ -508,14 +630,12 @@ app.post('/courses', authenticate(['admin', 'device']), async (req, res) => {
   res.status(201).json({ message: 'Course created successfully', course: data[0] });
 });
 
-// Get all courses (any logged-in user)
 app.get('/courses', authenticate([]), async (req, res) => {
   const { data, error } = await supabase.from('courses').select('*');
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
 });
 
-// Publish a course (admin or device user only)
 app.patch('/courses/:id/publish', authenticate(['admin', 'device']), async (req, res) => {
   const { id } = req.params;
   const { data, error } = await supabase
@@ -528,7 +648,6 @@ app.patch('/courses/:id/publish', authenticate(['admin', 'device']), async (req,
   res.json({ message: 'Course published', course: data[0] });
 });
 
-// Create a module for a course (admin only)
 app.post('/modules', authenticate(['admin']), async (req, res) => {
   const { course_id, module_name, credits } = req.body;
 
@@ -541,7 +660,6 @@ app.post('/modules', authenticate(['admin']), async (req, res) => {
   res.status(201).json({ message: 'Module created', module: data[0] });
 });
 
-// Get modules for a course (any logged-in user)
 app.get('/modules/:courseId', authenticate([]), async (req, res) => {
   const { courseId } = req.params;
   const { data, error } = await supabase
@@ -553,7 +671,6 @@ app.get('/modules/:courseId', authenticate([]), async (req, res) => {
   res.json(data);
 });
 
-// Assign a coordinator to a course (admin only)
 app.post('/course-coordinators', authenticate(['admin']), async (req, res) => {
   const { course_id, coordinator_id } = req.body;
 
@@ -566,7 +683,6 @@ app.post('/course-coordinators', authenticate(['admin']), async (req, res) => {
   res.status(201).json({ message: 'Coordinator assigned', assignment: data[0] });
 });
 
-// Get courses assigned to the logged-in coordinator
 app.get('/course-coordinators/my', authenticate(['coordinator']), async (req, res) => {
   const { data, error } = await supabase
     .from('course_coordinators')
@@ -577,7 +693,6 @@ app.get('/course-coordinators/my', authenticate(['coordinator']), async (req, re
   res.json(data);
 });
 
-// Create a course session (admin, device, or resource person)
 app.post('/course-sessions', authenticate(['admin', 'device', 'resource_person']), async (req, res) => {
   const { course_id, session_date, start_time, end_time, venue } = req.body;
 
@@ -590,7 +705,6 @@ app.post('/course-sessions', authenticate(['admin', 'device', 'resource_person']
   res.status(201).json({ message: 'Session created', session: data[0] });
 });
 
-// Get sessions for a course (any logged-in user)
 app.get('/course-sessions/:courseId', authenticate([]), async (req, res) => {
   const { courseId } = req.params;
   const { data, error } = await supabase
@@ -602,7 +716,6 @@ app.get('/course-sessions/:courseId', authenticate([]), async (req, res) => {
   res.json(data);
 });
 
-// Assign a resource person to a course (admin or device user only)
 app.post('/course-resource-persons', authenticate(['admin', 'device']), async (req, res) => {
   const { course_id, trainer_id } = req.body;
 
@@ -615,7 +728,6 @@ app.post('/course-resource-persons', authenticate(['admin', 'device']), async (r
   res.status(201).json({ message: 'Resource person assigned', assignment: data[0] });
 });
 
-// Get resource persons assigned to a course (any logged-in user)
 app.get('/course-resource-persons/:courseId', authenticate([]), async (req, res) => {
   const { courseId } = req.params;
   const { data, error } = await supabase
@@ -627,7 +739,6 @@ app.get('/course-resource-persons/:courseId', authenticate([]), async (req, res)
   res.json(data);
 });
 
-// Get own registrations (student only) — MUST come before /registrations/:courseId
 app.get('/registrations/my', authenticate(['student']), async (req, res) => {
   const studentId = await getStudentIdForUser(req.user.userId);
   if (!studentId) return res.status(404).json({ error: 'No student record linked to this account' });
@@ -641,7 +752,6 @@ app.get('/registrations/my', authenticate(['student']), async (req, res) => {
   res.json(data);
 });
 
-// Get registrations for a specific student (admin or device user only)
 app.get('/registrations/student/:studentId', authenticate(['admin', 'device']), async (req, res) => {
   const { studentId } = req.params;
   const { data, error } = await supabase
@@ -653,7 +763,6 @@ app.get('/registrations/student/:studentId', authenticate(['admin', 'device']), 
   res.json(data);
 });
 
-// Get assessments for a specific student (admin or device user only)
 app.get('/assessments/student/:studentId', authenticate(['admin', 'device']), async (req, res) => {
   const { studentId } = req.params;
   const { data, error } = await supabase
@@ -665,7 +774,6 @@ app.get('/assessments/student/:studentId', authenticate(['admin', 'device']), as
   res.json(data);
 });
 
-// Get certificates for a specific student (admin or device user only)
 app.get('/certificates/student/:studentId', authenticate(['admin', 'device']), async (req, res) => {
   const { studentId } = req.params;
   const { data, error } = await supabase
@@ -677,7 +785,6 @@ app.get('/certificates/student/:studentId', authenticate(['admin', 'device']), a
   res.json(data);
 });
 
-// Register a student for a course (admin or device user only)
 app.post('/registrations', authenticate(['admin', 'device']), async (req, res) => {
   const { student_id, course_id } = req.body;
 
@@ -696,7 +803,6 @@ app.post('/registrations', authenticate(['admin', 'device']), async (req, res) =
   res.status(201).json({ message: 'Student registered for course', registration: data[0] });
 });
 
-// Get registrations for a course (admin or device user only)
 app.get('/registrations/:courseId', authenticate(['admin', 'device']), async (req, res) => {
   const { courseId } = req.params;
   const { data, error } = await supabase
@@ -708,7 +814,6 @@ app.get('/registrations/:courseId', authenticate(['admin', 'device']), async (re
   res.json(data);
 });
 
-// Mark attendance (resource person, admin, or device user)
 app.post('/attendance', authenticate(['resource_person', 'admin', 'device']), async (req, res) => {
   const { session_id, student_id, status } = req.body;
 
@@ -721,7 +826,6 @@ app.post('/attendance', authenticate(['resource_person', 'admin', 'device']), as
   res.status(201).json({ message: 'Attendance marked', attendance: data[0] });
 });
 
-// Get own attendance (student only)
 app.get('/attendance/my', authenticate(['student']), async (req, res) => {
   const studentId = await getStudentIdForUser(req.user.userId);
   if (!studentId) return res.status(404).json({ error: 'No student record linked to this account' });
@@ -735,7 +839,6 @@ app.get('/attendance/my', authenticate(['student']), async (req, res) => {
   res.json(data);
 });
 
-// Helper: compute grade band from marks
 function computeGrade(marks) {
   const m = Number(marks);
   if (m < 50) return 'Fail';
@@ -744,7 +847,6 @@ function computeGrade(marks) {
   return 'Merit';
 }
 
-// Enter module marks (resource person or admin)
 app.post('/assessments', authenticate(['resource_person', 'admin']), async (req, res) => {
   const { student_id, course_id, module_id, marks } = req.body;
 
@@ -771,7 +873,6 @@ app.post('/assessments', authenticate(['resource_person', 'admin']), async (req,
   res.status(201).json({ message: 'Marks recorded (pending review)', assessment: data[0] });
 });
 
-// Get unreviewed assessments for a course (coordinator only, must be assigned to that course)
 app.get('/assessments/pending-review/:courseId', authenticate(['coordinator']), async (req, res) => {
   const { courseId } = req.params;
 
@@ -788,7 +889,6 @@ app.get('/assessments/pending-review/:courseId', authenticate(['coordinator']), 
   res.json(data);
 });
 
-// Review and publish an assessment (coordinator only, must be assigned to that course)
 app.patch('/assessments/:id/review', authenticate(['coordinator']), async (req, res) => {
   const { id } = req.params;
 
@@ -839,7 +939,6 @@ app.patch('/assessments/:id/review', authenticate(['coordinator']), async (req, 
   res.json({ message: 'Marks reviewed and published', assessment: data[0] });
 });
 
-// Publish marks (admin can bypass review — kept for backward compatibility)
 app.patch('/assessments/:id/publish', authenticate(['admin']), async (req, res) => {
   const { id } = req.params;
 
@@ -853,7 +952,6 @@ app.patch('/assessments/:id/publish', authenticate(['admin']), async (req, res) 
   res.json({ message: 'Marks published', assessment: data[0] });
 });
 
-// Get own published marks (student only)
 app.get('/assessments/my', authenticate(['student']), async (req, res) => {
   const studentId = await getStudentIdForUser(req.user.userId);
   if (!studentId) return res.status(404).json({ error: 'No student record linked to this account' });
@@ -868,7 +966,6 @@ app.get('/assessments/my', authenticate(['student']), async (req, res) => {
   res.json(data);
 });
 
-// Record a payment (admin or device user)
 app.post('/payments', authenticate(['admin', 'device']), async (req, res) => {
   const { student_id, course_id, amount, type, status } = req.body;
 
@@ -881,7 +978,6 @@ app.post('/payments', authenticate(['admin', 'device']), async (req, res) => {
   res.status(201).json({ message: 'Payment recorded', payment: data[0] });
 });
 
-// Get own payments / outstanding balance (student only)
 app.get('/payments/my', authenticate(['student']), async (req, res) => {
   const studentId = await getStudentIdForUser(req.user.userId);
   if (!studentId) return res.status(404).json({ error: 'No student record linked to this account' });
@@ -895,7 +991,6 @@ app.get('/payments/my', authenticate(['student']), async (req, res) => {
   res.json(data);
 });
 
-// Get payments for a specific student (admin or device user only)
 app.get('/payments/student/:studentId', authenticate(['admin', 'device']), async (req, res) => {
   const { studentId } = req.params;
   const { data, error } = await supabase
@@ -916,7 +1011,6 @@ app.get('/payments/student/:studentId', authenticate(['admin', 'device']), async
   });
 });
 
-// Total outstanding report (admin or device user)
 app.get('/reports/outstanding', authenticate(['admin', 'device']), async (req, res) => {
   const { data, error } = await supabase.from('payments').select('*');
   if (error) return res.status(500).json({ error: error.message });
@@ -931,7 +1025,6 @@ app.get('/reports/outstanding', authenticate(['admin', 'device']), async (req, r
   });
 });
 
-// Issue a certificate (admin only) — checks academic + financial clearance first
 app.post('/certificates', authenticate(['admin']), async (req, res) => {
   const { student_id, course_id } = req.body;
 
@@ -991,7 +1084,6 @@ app.post('/certificates', authenticate(['admin']), async (req, res) => {
   res.status(201).json({ message: 'Certificate issued', certificate: data[0] });
 });
 
-// Verify a certificate (public route, no login needed)
 app.get('/certificates/verify/:code', async (req, res) => {
   const { code } = req.params;
   const { data, error } = await supabase

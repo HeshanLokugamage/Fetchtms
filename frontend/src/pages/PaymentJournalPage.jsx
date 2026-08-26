@@ -8,11 +8,13 @@ export default function PaymentJournalPage() {
   const navigate = useNavigate();
 
   const [vendors, setVendors] = useState([]);
+  const [resourcePersons, setResourcePersons] = useState([]);
   const [paymentMethods, setPaymentMethods] = useState([]);
 
   const [entryDate, setEntryDate] = useState('');
   const [category, setCategory] = useState('');
   const [vendorId, setVendorId] = useState('');
+  const [resourcePersonId, setResourcePersonId] = useState('');
   const [amount, setAmount] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('');
   const [description, setDescription] = useState('');
@@ -27,10 +29,16 @@ export default function PaymentJournalPage() {
       .then(res => setVendors(res.data))
       .catch(() => {});
 
+    axios.get('https://fetchtms.onrender.com/resource-persons', { headers: getHeaders() })
+      .then(res => setResourcePersons(res.data))
+      .catch(() => {});
+
     axios.get('https://fetchtms.onrender.com/payment-methods', { headers: getHeaders() })
       .then(res => setPaymentMethods(res.data))
       .catch(() => {});
   }, []);
+
+  const isResourcePersonCategory = category === 'resource_person_payment';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -39,13 +47,15 @@ export default function PaymentJournalPage() {
       await axios.post('https://fetchtms.onrender.com/journal/payment', {
         entry_date: entryDate,
         category,
-        vendor_id: vendorId,
+        vendor_id: isResourcePersonCategory ? null : vendorId,
+        resource_person_id: isResourcePersonCategory ? resourcePersonId : null,
         amount,
         payment_method_id: paymentMethodId,
         description
       }, { headers: getHeaders() });
       setMessage('Payment recorded successfully');
-      setEntryDate(''); setCategory(''); setVendorId(''); setAmount(''); setPaymentMethodId(''); setDescription('');
+      setEntryDate(''); setCategory(''); setVendorId(''); setResourcePersonId('');
+      setAmount(''); setPaymentMethodId(''); setDescription('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to record payment');
     }
@@ -75,20 +85,34 @@ export default function PaymentJournalPage() {
             <option value="resource_person_payment">Resource Person Payment</option>
           </select>
         </div>
-        <div style={{ marginBottom: '10px' }}>
-          <label>Vendor</label><br />
-          <select value={vendorId} onChange={e => setVendorId(e.target.value)} style={{ width: '100%', padding: '8px' }} required>
-            <option value="">Select Vendor</option>
-            {vendors.map(v => (
-              <option key={v.vendor_id} value={v.vendor_id}>{v.name}</option>
-            ))}
-          </select>
-          {vendors.length === 0 && (
-            <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>
-              No vendors found. Add one first via Manage Vendors.
-            </p>
-          )}
-        </div>
+
+        {isResourcePersonCategory ? (
+          <div style={{ marginBottom: '10px' }}>
+            <label>Resource Person</label><br />
+            <select value={resourcePersonId} onChange={e => setResourcePersonId(e.target.value)} style={{ width: '100%', padding: '8px' }} required>
+              <option value="">Select Resource Person</option>
+              {resourcePersons.map(rp => (
+                <option key={rp.trainer_id} value={rp.trainer_id}>{rp.name}</option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div style={{ marginBottom: '10px' }}>
+            <label>Vendor</label><br />
+            <select value={vendorId} onChange={e => setVendorId(e.target.value)} style={{ width: '100%', padding: '8px' }} required>
+              <option value="">Select Vendor</option>
+              {vendors.map(v => (
+                <option key={v.vendor_id} value={v.vendor_id}>{v.name}</option>
+              ))}
+            </select>
+            {vendors.length === 0 && (
+              <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>
+                No vendors found. Add one first via Manage Vendors.
+              </p>
+            )}
+          </div>
+        )}
+
         <div style={{ marginBottom: '10px' }}>
           <label>Amount</label><br />
           <input type="number" value={amount} onChange={e => setAmount(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
