@@ -23,6 +23,12 @@ import ManageVendorsPage from './pages/ManageVendorsPage.jsx'
 import GeneralJournalPage from './pages/GeneralJournalPage.jsx'
 import JournalEntriesPage from './pages/JournalEntriesPage.jsx'
 import ManagePaymentMethodsPage from './pages/ManagePaymentMethodsPage.jsx'
+import ReportsHome from './pages/ReportsHome.jsx'
+import ProfitLossPage from './pages/ProfitLossPage.jsx'
+import BalanceSheetPage from './pages/BalanceSheetPage.jsx'
+import OutstandingReportPage from './pages/OutstandingReportPage.jsx'
+import StudentBalanceSummaryPage from './pages/StudentBalanceSummaryPage.jsx'
+import ResourcePersonSummaryPage from './pages/ResourcePersonSummaryPage.jsx'
 import ResourcePersonDashboard from './pages/ResourcePersonDashboard.jsx'
 import StudentDashboard from './pages/StudentDashboard.jsx'
 import CoordinatorDashboard from './pages/CoordinatorDashboard.jsx'
@@ -108,6 +114,30 @@ createRoot(document.getElementById('root')).render(
         <Route
           path="/admin/operations/manage-payment-methods"
           element={<ProtectedRoute role="admin"><ManagePaymentMethodsPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/reports"
+          element={<ProtectedRoute role="admin"><ReportsHome /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/reports/profit-loss"
+          element={<ProtectedRoute role="admin"><ProfitLossPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/reports/balance-sheet"
+          element={<ProtectedRoute role="admin"><BalanceSheetPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/reports/outstanding"
+          element={<ProtectedRoute role="admin"><OutstandingReportPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/reports/student-balance-summary"
+          element={<ProtectedRoute role="admin"><StudentBalanceSummaryPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/reports/resource-person-summary"
+          element={<ProtectedRoute role="admin"><ResourcePersonSummaryPage /></ProtectedRoute>}
         />
         <Route
           path="/resource-person"

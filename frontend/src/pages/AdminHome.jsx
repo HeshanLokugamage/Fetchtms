@@ -36,6 +36,9 @@ export default function AdminHome() {
       <a href="/admin/operations" style={linkStyle} onClick={e => { e.preventDefault(); navigate('/admin/operations'); }}>
         ⚙️ Operations (Payments, Certificates, Assignments, Users)
       </a>
+      <a href="/admin/reports" style={linkStyle} onClick={e => { e.preventDefault(); navigate('/admin/reports'); }}>
+        📊 Reports
+      </a>
     </div>
   );
 }
