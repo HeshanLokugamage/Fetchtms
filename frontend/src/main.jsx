@@ -21,6 +21,8 @@ import ReceiptJournalPage from './pages/ReceiptJournalPage.jsx'
 import PaymentJournalPage from './pages/PaymentJournalPage.jsx'
 import ManageVendorsPage from './pages/ManageVendorsPage.jsx'
 import GeneralJournalPage from './pages/GeneralJournalPage.jsx'
+import JournalEntriesPage from './pages/JournalEntriesPage.jsx'
+import ManagePaymentMethodsPage from './pages/ManagePaymentMethodsPage.jsx'
 import ResourcePersonDashboard from './pages/ResourcePersonDashboard.jsx'
 import StudentDashboard from './pages/StudentDashboard.jsx'
 import CoordinatorDashboard from './pages/CoordinatorDashboard.jsx'
@@ -98,6 +100,14 @@ createRoot(document.getElementById('root')).render(
         <Route
           path="/admin/operations/general-journal"
           element={<ProtectedRoute role="admin"><GeneralJournalPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/operations/journal-entries"
+          element={<ProtectedRoute role="admin"><JournalEntriesPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/operations/manage-payment-methods"
+          element={<ProtectedRoute role="admin"><ManagePaymentMethodsPage /></ProtectedRoute>}
         />
         <Route
           path="/resource-person"

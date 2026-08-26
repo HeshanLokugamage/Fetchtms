@@ -36,6 +36,8 @@ export default function OperationsHome() {
       <button style={linkStyle} onClick={() => navigate('/admin/operations/payment-journal')}>💸 Payment Journal</button>
       <button style={linkStyle} onClick={() => navigate('/admin/operations/manage-vendors')}>🏢 Manage Vendors</button>
       <button style={linkStyle} onClick={() => navigate('/admin/operations/general-journal')}>📖 General Journal Entry</button>
+      <button style={linkStyle} onClick={() => navigate('/admin/operations/journal-entries')}>📚 Journal Entries (View/Reverse)</button>
+      <button style={linkStyle} onClick={() => navigate('/admin/operations/manage-payment-methods')}>💳 Manage Payment Methods</button>
     </div>
   );
 }
