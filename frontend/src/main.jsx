@@ -31,6 +31,7 @@ import BalanceSheetPage from './pages/BalanceSheetPage.jsx'
 import OutstandingReportPage from './pages/OutstandingReportPage.jsx'
 import StudentBalanceSummaryPage from './pages/StudentBalanceSummaryPage.jsx'
 import ResourcePersonSummaryPage from './pages/ResourcePersonSummaryPage.jsx'
+import VerifyCertificatePage from './pages/VerifyCertificatePage.jsx'
 import ResourcePersonDashboard from './pages/ResourcePersonDashboard.jsx'
 import StudentDashboard from './pages/StudentDashboard.jsx'
 import CoordinatorDashboard from './pages/CoordinatorDashboard.jsx'
@@ -42,6 +43,7 @@ createRoot(document.getElementById('root')).render(
       <Routes>
         <Route path="/" element={<Navigate to="/login" />} />
         <Route path="/login" element={<App />} />
+        <Route path="/verify-certificate" element={<VerifyCertificatePage />} />
         <Route
           path="/admin"
           element={<ProtectedRoute role="admin"><AdminHome /></ProtectedRoute>}

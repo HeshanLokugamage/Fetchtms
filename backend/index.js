@@ -1110,7 +1110,39 @@ app.post('/certificates', authenticate(['admin']), async (req, res) => {
   if (error) return res.status(500).json({ error: error.message });
   res.status(201).json({ message: 'Certificate issued', certificate: data[0] });
 });
+// Public: find a student's certificate by exact student_id or exact full_name match
+app.get('/certificates/find-by-student', async (req, res) => {
+  const { student_id, full_name } = req.query;
 
+  if (!student_id && !full_name) {
+    return res.status(400).json({ error: 'Provide student_id or full_name' });
+  }
+
+  let studentQuery = supabase.from('students').select('student_id, full_name');
+  if (student_id) studentQuery = studentQuery.eq('student_id', student_id);
+  if (full_name) studentQuery = studentQuery.ilike('full_name', full_name);
+
+  const { data: students, error: studentError } = await studentQuery;
+  if (studentError) return res.status(500).json({ error: studentError.message });
+  if (!students || students.length === 0) {
+    return res.status(404).json({ error: 'No matching student found' });
+  }
+
+  const studentIds = students.map(s => s.student_id);
+  const { data: certificates, error: certError } = await supabase
+    .from('certificates')
+    .select('*')
+    .in('student_id', studentIds);
+
+  if (certError) return res.status(500).json({ error: certError.message });
+
+  const results = certificates.map(cert => {
+    const student = students.find(s => s.student_id === cert.student_id);
+    return { ...cert, student_name: student ? student.full_name : null };
+  });
+
+  res.json({ certificates: results });
+});
 app.get('/certificates/verify/:code', async (req, res) => {
   const { code } = req.params;
   const { data, error } = await supabase
@@ -1127,3 +1159,4 @@ const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
+
