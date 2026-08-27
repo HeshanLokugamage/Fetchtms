@@ -347,7 +347,6 @@ app.post('/journal/entries/:id/reverse', authenticate(['admin']), async (req, re
   res.json({ message: 'Entry reversed successfully', reversalEntry });
 });
 
-// Profit & Loss report (admin only)
 app.get('/reports/profit-loss', authenticate(['admin']), async (req, res) => {
   const { from_date, to_date } = req.query;
 
@@ -386,7 +385,6 @@ app.get('/reports/profit-loss', authenticate(['admin']), async (req, res) => {
   res.json({ accounts: results, totalIncome, totalExpense, netProfit });
 });
 
-// Balance Sheet report (admin only)
 app.get('/reports/balance-sheet', authenticate(['admin']), async (req, res) => {
   const { as_of_date } = req.query;
 
@@ -423,7 +421,6 @@ app.get('/reports/balance-sheet', authenticate(['admin']), async (req, res) => {
   res.json({ accounts: results, totalAssets, totalLiabilities, totalEquity });
 });
 
-// Outstanding report for a single student (admin or device user only)
 app.get('/reports/outstanding/student/:studentId', authenticate(['admin', 'device']), async (req, res) => {
   const { studentId } = req.params;
   const { data, error } = await supabase
@@ -444,7 +441,6 @@ app.get('/reports/outstanding/student/:studentId', authenticate(['admin', 'devic
   });
 });
 
-// Student Balance Summary report (admin or device user only)
 app.get('/reports/student-balance-summary', authenticate(['admin', 'device']), async (req, res) => {
   const { data: students, error: studentsError } = await supabase.from('students').select('*');
   if (studentsError) return res.status(500).json({ error: studentsError.message });
@@ -468,7 +464,6 @@ app.get('/reports/student-balance-summary', authenticate(['admin', 'device']), a
   res.json(summary);
 });
 
-// Resource Person Payment Summary report (admin only)
 app.get('/reports/resource-person-summary', authenticate(['admin']), async (req, res) => {
   const { data: resourcePersons, error: rpError } = await supabase.from('resource_persons').select('*');
   if (rpError) return res.status(500).json({ error: rpError.message });
@@ -580,6 +575,38 @@ app.get('/resource-persons', authenticate(['admin']), async (req, res) => {
   const { data, error } = await supabase.from('resource_persons').select('*');
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
+});
+
+// Bulk import students from Excel (admin only)
+app.post('/students/bulk-import', authenticate(['admin']), async (req, res) => {
+  const { students } = req.body;
+
+  if (!Array.isArray(students) || students.length === 0) {
+    return res.status(400).json({ error: 'No student data provided' });
+  }
+
+  const rowsToInsert = students.map(s => ({
+    full_name: s.full_name,
+    nic_passport: s.nic_passport || null,
+    dob: s.dob || null,
+    gender: s.gender || null,
+    address: s.address || null,
+    contact_number: s.contact_number || null,
+    email: s.email,
+    organization: s.organization || null,
+    job_title: s.job_title || null,
+    qualification: s.qualification || null,
+    emergency_contact: s.emergency_contact || null,
+    registration_status: 'pending'
+  }));
+
+  const { data, error } = await supabase
+    .from('students')
+    .insert(rowsToInsert)
+    .select();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.status(201).json({ message: `${data.length} students imported successfully`, students: data });
 });
 
 app.post('/students', authenticate(['admin', 'device']), async (req, res) => {

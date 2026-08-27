@@ -8,6 +8,7 @@ import AdminHome from './pages/AdminHome.jsx'
 import StudentsPage from './pages/StudentsPage.jsx'
 import StudentListPage from './pages/StudentListPage.jsx'
 import StudentSearchPage from './pages/StudentSearchPage.jsx'
+import ImportStudentsPage from './pages/ImportStudentsPage.jsx'
 import CoursesPage from './pages/CoursesPage.jsx'
 import OperationsHome from './pages/OperationsHome.jsx'
 import PaymentPage from './pages/PaymentPage.jsx'
@@ -54,6 +55,10 @@ createRoot(document.getElementById('root')).render(
         <Route
           path="/admin/students/search"
           element={<ProtectedRoute role="admin"><StudentSearchPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/students/import"
+          element={<ProtectedRoute role="admin"><ImportStudentsPage /></ProtectedRoute>}
         />
         <Route
           path="/admin/courses"
