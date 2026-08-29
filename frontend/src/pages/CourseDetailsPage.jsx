@@ -82,6 +82,17 @@ export default function CourseDetailsPage() {
     }
   };
 
+  const handleCancelRegistration = async (registrationId) => {
+    setMessage(''); setError('');
+    try {
+      await axios.delete(`https://fetchtms.onrender.com/registrations/${registrationId}`, { headers: getHeaders() });
+      setMessage('Registration cancelled and fee reversed');
+      loadDetails();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to cancel registration');
+    }
+  };
+
   if (!details || !form) {
     return (
       <div style={{ maxWidth: '900px', margin: '40px auto', fontFamily: 'sans-serif' }}>
@@ -127,6 +138,10 @@ export default function CourseDetailsPage() {
         </table>
       ) : (
         <form onSubmit={handleSaveCourse} style={{ marginBottom: '20px' }}>
+          <p style={{ fontSize: '12px', color: 'gray' }}>
+            Note: changing the Fee only applies to students registered after this change. Students already
+            registered keep the fee amount recorded at the time they registered.
+          </p>
           {[
             ['name', 'Name'], ['category', 'Category'], ['duration', 'Duration'],
             ['venue', 'Venue'], ['fee', 'Fee'], ['max_participants', 'Max Participants']
@@ -187,7 +202,7 @@ export default function CourseDetailsPage() {
 
       <h3>Registered Students ({students.length})</h3>
       <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%' }}>
-        <thead><tr><th>Student</th><th>Fee</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
+        <thead><tr><th>Student</th><th>Fee</th><th>Paid</th><th>Balance</th><th>Status</th><th>Action</th></tr></thead>
         <tbody>
           {students.map(s => (
             <tr key={s.registration.registration_id}>
@@ -196,9 +211,25 @@ export default function CourseDetailsPage() {
               <td>{s.paid}</td>
               <td>{s.balance}</td>
               <td>{s.registration.status}</td>
+              <td>
+                {s.paid > 0 ? (
+                  <span style={{ color: 'gray', fontSize: '12px' }}>Payments made — cannot cancel</span>
+                ) : (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Cancel ${s.student?.full_name || 'this student'}'s registration and reverse the fee?`)) {
+                        handleCancelRegistration(s.registration.registration_id);
+                      }
+                    }}
+                    style={{ padding: '4px 10px' }}
+                  >
+                    Cancel Registration
+                  </button>
+                )}
+              </td>
             </tr>
           ))}
-          {students.length === 0 && <tr><td colSpan="5">No students registered yet.</td></tr>}
+          {students.length === 0 && <tr><td colSpan="6">No students registered yet.</td></tr>}
         </tbody>
       </table>
     </div>

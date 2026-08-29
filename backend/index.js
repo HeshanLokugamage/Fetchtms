@@ -971,6 +971,33 @@ app.get('/certificates/student/:studentId', authenticate(['admin', 'device']), a
   res.json(data);
 });
 
+app.delete('/registrations/:id', authenticate(['admin', 'device']), async (req, res) => {
+  const { id } = req.params;
+
+  const { data: reg, error: regError } = await supabase
+    .from('registrations').select('*').eq('registration_id', id).single();
+  if (regError || !reg) return res.status(404).json({ error: 'Registration not found' });
+
+  const { data: payments, error: payError } = await supabase
+    .from('payments').select('*').eq('student_id', reg.student_id).eq('course_id', reg.course_id);
+  if (payError) return res.status(500).json({ error: payError.message });
+
+  const hasCredit = payments.some(p => p.type === 'credit');
+  if (hasCredit) {
+    return res.status(400).json({
+      error: 'Cannot cancel: payments have already been made toward this course. Reverse the payments first if this student is dropping out.'
+    });
+  }
+
+  // Safe to cancel — no payments made yet, so clear the auto-generated fee debit along with the registration
+  await supabase.from('payments').delete().eq('student_id', reg.student_id).eq('course_id', reg.course_id).eq('type', 'debit');
+
+  const { error: delError } = await supabase.from('registrations').delete().eq('registration_id', id);
+  if (delError) return res.status(500).json({ error: delError.message });
+
+  res.json({ message: 'Registration cancelled and fee reversed' });
+});
+
 app.post('/registrations', authenticate(['admin', 'device']), async (req, res) => {
   const { student_id, course_id } = req.body;
 
@@ -1033,6 +1060,25 @@ app.get('/registrations/:courseId', authenticate(['admin', 'device', 'coordinato
 
 app.post('/attendance', authenticate(['resource_person', 'admin', 'device', 'coordinator']), async (req, res) => {
   const { session_id, student_id, status } = req.body;
+
+  const { data: existing, error: existingError } = await supabase
+    .from('attendance')
+    .select('attendance_id')
+    .eq('session_id', session_id)
+    .eq('student_id', student_id);
+
+  if (existingError) return res.status(500).json({ error: existingError.message });
+
+  if (existing && existing.length > 0) {
+    const { data, error } = await supabase
+      .from('attendance')
+      .update({ status })
+      .eq('attendance_id', existing[0].attendance_id)
+      .select();
+
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ message: 'Attendance already recorded for this student/session — status updated', attendance: data[0] });
+  }
 
   const { data, error } = await supabase
     .from('attendance')
