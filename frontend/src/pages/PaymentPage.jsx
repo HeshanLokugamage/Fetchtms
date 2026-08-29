@@ -50,16 +50,34 @@ export default function PaymentPage() {
   const selectedStudent = students.find(s => s.student_id === Number(payStudentId));
   const selectedCourse = courses.find(c => c.course_id === Number(payCourseId));
 
+  const [balance, setBalance] = useState(null);
+
+  useEffect(() => {
+    if (payStudentId && payCourseId) {
+      axios.get(`https://fetchtms.onrender.com/courses/${payCourseId}/balance/${payStudentId}`, { headers: getHeaders() })
+        .then(res => setBalance(res.data))
+        .catch(() => setBalance(null));
+    } else {
+      setBalance(null);
+    }
+  }, [payStudentId, payCourseId]);
+
   const handleRecordPayment = async (e) => {
     e.preventDefault();
     setMessage(''); setError('');
+
+    if (payType === 'credit' && balance && Number(payAmount) > balance.balance) {
+      setError(`Payment cannot exceed the outstanding balance of ${balance.balance}`);
+      return;
+    }
+
     try {
       await axios.post('https://fetchtms.onrender.com/payments', {
         student_id: payStudentId, course_id: payCourseId, amount: payAmount, type: payType, status: payStatus
       }, { headers: getHeaders() });
       setMessage('Payment recorded successfully');
       setPayStudentId(''); setPayCourseId(''); setPayAmount(''); setPayType('debit'); setPayStatus('pending');
-      setStudentSearch(''); setCourseSearch('');
+      setStudentSearch(''); setCourseSearch(''); setBalance(null);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to record payment');
     }
@@ -132,9 +150,28 @@ export default function PaymentPage() {
           )}
         </div>
 
+        {balance && (
+          <p style={{ fontSize: '13px', color: 'gray', marginBottom: '10px' }}>
+            Course Fee: {balance.fee} — Paid: {balance.paid} — Outstanding Balance: {balance.balance}
+          </p>
+        )}
         <div style={{ marginBottom: '10px' }}>
           <label>Amount</label><br />
-          <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+          <input
+            type="number"
+            min="0.01"
+            step="0.01"
+            max={payType === 'credit' && balance ? balance.balance : undefined}
+            value={payAmount}
+            onChange={e => setPayAmount(e.target.value)}
+            style={{ width: '100%', padding: '8px' }}
+            required
+          />
+          {payType === 'credit' && balance && (
+            <p style={{ fontSize: '12px', color: 'gray', marginTop: '4px' }}>
+              Maximum payable: {balance.balance}
+            </p>
+          )}
         </div>
         <div style={{ marginBottom: '10px' }}>
           <label>Type</label><br />

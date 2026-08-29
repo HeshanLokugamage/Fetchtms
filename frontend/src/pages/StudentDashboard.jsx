@@ -39,7 +39,7 @@ export default function StudentDashboard() {
 
   const totalDebit = payments.filter(p => p.type === 'debit').reduce((sum, p) => sum + Number(p.amount), 0);
   const totalCredit = payments.filter(p => p.type === 'credit').reduce((sum, p) => sum + Number(p.amount), 0);
-  const outstanding = totalDebit - totalCredit;
+  const outstanding = Math.max(totalDebit - totalCredit, 0);
 
   return (
     <div style={{ maxWidth: '900px', margin: '40px auto', fontFamily: 'sans-serif' }}>
@@ -54,15 +54,17 @@ export default function StudentDashboard() {
       <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '30px' }}>
         <thead>
           <tr>
-            <th>Course ID</th><th>Status</th><th>Registered At</th>
+            <th>Course</th><th>Status</th><th>Fee</th><th>Paid</th><th>Balance Due</th>
           </tr>
         </thead>
         <tbody>
           {registrations.map(r => (
             <tr key={r.registration_id}>
-              <td>{r.course_id}</td>
+              <td>{r.course_code ? `${r.course_code} — ${r.course_name}` : (r.course_name || r.course_id)}</td>
               <td>{r.status}</td>
-              <td>{r.registered_at}</td>
+              <td>{r.fee}</td>
+              <td>{r.paid}</td>
+              <td>{r.balance}</td>
             </tr>
           ))}
         </tbody>
@@ -89,13 +91,14 @@ export default function StudentDashboard() {
       <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '30px' }}>
         <thead>
           <tr>
-            <th>Course ID</th><th>Marks</th><th>Grade</th>
+            <th>Course ID</th><th>Evaluation</th><th>Marks</th><th>Grade</th>
           </tr>
         </thead>
         <tbody>
           {assessments.map(a => (
             <tr key={a.assessment_id}>
               <td>{a.course_id}</td>
+              <td style={{ textTransform: 'capitalize' }}>{a.eval_type || '—'}</td>
               <td>{a.marks}</td>
               <td>{a.grade}</td>
             </tr>

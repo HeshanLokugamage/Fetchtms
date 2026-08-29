@@ -9,12 +9,14 @@ export default function PaymentJournalPage() {
 
   const [vendors, setVendors] = useState([]);
   const [resourcePersons, setResourcePersons] = useState([]);
+  const [staffUsers, setStaffUsers] = useState([]);
   const [paymentMethods, setPaymentMethods] = useState([]);
 
   const [entryDate, setEntryDate] = useState('');
   const [category, setCategory] = useState('');
   const [vendorId, setVendorId] = useState('');
   const [resourcePersonId, setResourcePersonId] = useState('');
+  const [staffUserId, setStaffUserId] = useState('');
   const [amount, setAmount] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('');
   const [description, setDescription] = useState('');
@@ -33,12 +35,17 @@ export default function PaymentJournalPage() {
       .then(res => setResourcePersons(res.data))
       .catch(() => {});
 
+    axios.get('https://fetchtms.onrender.com/users', { headers: getHeaders() })
+      .then(res => setStaffUsers(res.data.filter(u => u.role === 'staff')))
+      .catch(() => {});
+
     axios.get('https://fetchtms.onrender.com/payment-methods', { headers: getHeaders() })
       .then(res => setPaymentMethods(res.data))
       .catch(() => {});
   }, []);
 
   const isResourcePersonCategory = category === 'resource_person_payment';
+  const isStaffCategory = category === 'staff_payment';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -47,14 +54,15 @@ export default function PaymentJournalPage() {
       await axios.post('https://fetchtms.onrender.com/journal/payment', {
         entry_date: entryDate,
         category,
-        vendor_id: isResourcePersonCategory ? null : vendorId,
+        vendor_id: (isResourcePersonCategory || isStaffCategory) ? null : vendorId,
         resource_person_id: isResourcePersonCategory ? resourcePersonId : null,
+        staff_user_id: isStaffCategory ? staffUserId : null,
         amount,
         payment_method_id: paymentMethodId,
         description
       }, { headers: getHeaders() });
       setMessage('Payment recorded successfully');
-      setEntryDate(''); setCategory(''); setVendorId(''); setResourcePersonId('');
+      setEntryDate(''); setCategory(''); setVendorId(''); setResourcePersonId(''); setStaffUserId('');
       setAmount(''); setPaymentMethodId(''); setDescription('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to record payment');
@@ -83,6 +91,8 @@ export default function PaymentJournalPage() {
             <option value="fixed_assets">Fixed Assets Purchasing</option>
             <option value="other_purchases">Other Purchases</option>
             <option value="resource_person_payment">Resource Person Payment</option>
+            <option value="staff_payment">Staff Payment</option>
+            <option value="other_expenses">Other Expenses</option>
           </select>
         </div>
 
@@ -95,6 +105,21 @@ export default function PaymentJournalPage() {
                 <option key={rp.trainer_id} value={rp.trainer_id}>{rp.name}</option>
               ))}
             </select>
+          </div>
+        ) : isStaffCategory ? (
+          <div style={{ marginBottom: '10px' }}>
+            <label>Staff</label><br />
+            <select value={staffUserId} onChange={e => setStaffUserId(e.target.value)} style={{ width: '100%', padding: '8px' }} required>
+              <option value="">Select Staff</option>
+              {staffUsers.map(u => (
+                <option key={u.user_id} value={u.user_id}>{u.username}</option>
+              ))}
+            </select>
+            {staffUsers.length === 0 && (
+              <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>
+                No staff accounts found. Create one first via Create User Account (role: Staff).
+              </p>
+            )}
           </div>
         ) : (
           <div style={{ marginBottom: '10px' }}>

@@ -203,12 +203,15 @@ export default function CoursesPage() {
               <td>{c.status}</td>
               <td>
                 {c.status !== 'published' ? (
-                  <button onClick={() => handlePublishCourse(c.course_id)} style={{ padding: '4px 10px' }}>
+                  <button onClick={() => handlePublishCourse(c.course_id)} style={{ padding: '4px 10px', marginRight: '6px' }}>
                     Publish
                   </button>
                 ) : (
-                  <span style={{ color: 'gray' }}>—</span>
+                  <span style={{ color: 'gray', marginRight: '6px' }}>—</span>
                 )}
+                <button onClick={() => navigate(`/admin/courses/${c.course_id}`)} style={{ padding: '4px 10px' }}>
+                  View Details
+                </button>
               </td>
             </tr>
           ))}

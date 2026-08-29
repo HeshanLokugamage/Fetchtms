@@ -112,7 +112,18 @@ export default function StudentsPage() {
         </div>
         <div style={{ marginBottom: '10px' }}>
           <label>Qualification</label><br />
-          <input value={qualification} onChange={e => setQualification(e.target.value)} style={{ width: '100%', padding: '8px' }} />
+          <select value={qualification} onChange={e => setQualification(e.target.value)} style={{ width: '100%', padding: '8px' }}>
+            <option value="">Select Qualification</option>
+            <option value="GCE O/L">GCE O/L</option>
+            <option value="GCE A/L">GCE A/L</option>
+            <option value="Associate Diploma">Associate Diploma</option>
+            <option value="Diploma">Diploma</option>
+            <option value="Higher Diploma">Higher Diploma</option>
+            <option value="Degree">Degree</option>
+            <option value="Masters">Masters</option>
+            <option value="PhD">PhD</option>
+            <option value="NVQ">NVQ</option>
+          </select>
         </div>
         <div style={{ marginBottom: '10px' }}>
           <label>Emergency Contact</label><br />

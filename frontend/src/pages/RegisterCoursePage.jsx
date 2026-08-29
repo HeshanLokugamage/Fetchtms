@@ -27,14 +27,16 @@ export default function RegisterCoursePage() {
       .catch(() => {});
   }, []);
 
+  const selectedCourse = courses.find(c => String(c.course_id) === String(regCourseId));
+
   const handleRegisterForCourse = async (e) => {
     e.preventDefault();
     setMessage(''); setError('');
     try {
-      await axios.post('https://fetchtms.onrender.com/registrations', {
+      const res = await axios.post('https://fetchtms.onrender.com/registrations', {
         student_id: regStudentId, course_id: regCourseId
       }, { headers: getHeaders() });
-      setMessage('Student registered for course successfully');
+      setMessage(`Student registered for course successfully. Amount to be paid: ${res.data.fee}`);
       setRegStudentId(''); setRegCourseId('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to register student for course');
@@ -74,6 +76,11 @@ export default function RegisterCoursePage() {
             ))}
           </select>
         </div>
+        {selectedCourse && (
+          <p style={{ fontSize: '13px', color: 'gray', marginBottom: '10px' }}>
+            Course fee: {selectedCourse.fee || 0}
+          </p>
+        )}
         <button type="submit" style={{ padding: '8px 16px' }}>Register</button>
       </form>
     </div>

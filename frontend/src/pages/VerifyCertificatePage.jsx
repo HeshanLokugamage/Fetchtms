@@ -90,6 +90,9 @@ export default function VerifyCertificatePage() {
           <p><strong>Student ID:</strong> {result.student_id}</p>
           <p><strong>Course ID:</strong> {result.course_id}</p>
           <p><strong>Issue Date:</strong> {result.issue_date}</p>
+          <a href={`https://fetchtms.onrender.com/certificates/${result.verification_code}/pdf`} target="_blank" rel="noreferrer">
+            View / Download Certificate PDF
+          </a>
         </div>
       )}
 
@@ -102,6 +105,9 @@ export default function VerifyCertificatePage() {
               <p><strong>Verification Code:</strong> {cert.verification_code}</p>
               <p><strong>Course ID:</strong> {cert.course_id}</p>
               <p><strong>Issue Date:</strong> {cert.issue_date}</p>
+              <a href={`https://fetchtms.onrender.com/certificates/${cert.verification_code}/pdf`} target="_blank" rel="noreferrer">
+                View / Download Certificate PDF
+              </a>
             </div>
           ))}
         </>

@@ -4,6 +4,7 @@ const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { generateCertificatePdf } = require('./certificate');
 
 const app = express();
 app.use(cors());
@@ -188,12 +189,14 @@ app.post('/journal/receipt', authenticate(['admin']), async (req, res) => {
 });
 
 app.post('/journal/payment', authenticate(['admin']), async (req, res) => {
-  const { entry_date, category, vendor_id, resource_person_id, amount, payment_method_id, description } = req.body;
+  const { entry_date, category, vendor_id, resource_person_id, staff_user_id, amount, payment_method_id, description } = req.body;
 
   const categoryToCode = {
     'fixed_assets': '1500',
     'other_purchases': '5100',
-    'resource_person_payment': '5000'
+    'resource_person_payment': '5000',
+    'staff_payment': '5200',
+    'other_expenses': '5300'
   };
   const debitCode = categoryToCode[category];
   if (!debitCode) return res.status(400).json({ error: 'Invalid category' });
@@ -219,11 +222,17 @@ app.post('/journal/payment', authenticate(['admin']), async (req, res) => {
 
   if (entryError) return res.status(500).json({ error: entryError.message });
 
+  const lineExtras = {
+    vendor_id: category === 'staff_payment' || category === 'resource_person_payment' ? null : (vendor_id || null),
+    resource_person_id: category === 'resource_person_payment' ? (resource_person_id || null) : null,
+    staff_user_id: category === 'staff_payment' ? (staff_user_id || null) : null
+  };
+
   const { error: linesError } = await supabase
     .from('journal_lines')
     .insert([
-      { entry_id: entry.entry_id, account_id: debitAccountId, debit_amount: amount, credit_amount: 0, vendor_id: vendor_id || null, resource_person_id: resource_person_id || null },
-      { entry_id: entry.entry_id, account_id: cashAccountId, debit_amount: 0, credit_amount: amount, vendor_id: vendor_id || null, resource_person_id: resource_person_id || null }
+      { entry_id: entry.entry_id, account_id: debitAccountId, debit_amount: amount, credit_amount: 0, ...lineExtras },
+      { entry_id: entry.entry_id, account_id: cashAccountId, debit_amount: 0, credit_amount: amount, ...lineExtras }
     ]);
 
   if (linesError) return res.status(500).json({ error: linesError.message });
@@ -675,6 +684,134 @@ app.patch('/courses/:id/publish', authenticate(['admin', 'device']), async (req,
   res.json({ message: 'Course published', course: data[0] });
 });
 
+app.put('/courses/:id', authenticate(['admin', 'device']), async (req, res) => {
+  const { id } = req.params;
+  const {
+    code, name, category, description, duration, sessions_count,
+    training_mode, venue, start_date, end_date, max_participants,
+    fee, certificate_type, level
+  } = req.body;
+
+  const { data, error } = await supabase
+    .from('courses')
+    .update({
+      code, name, category, description, duration, sessions_count,
+      training_mode, venue, start_date, end_date, max_participants,
+      fee, certificate_type, level
+    })
+    .eq('course_id', id)
+    .select();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ message: 'Course updated', course: data[0] });
+});
+
+// Full detail view of a course: assigned resource person(s), coordinator, modules, registered students
+app.get('/courses/:id/details', authenticate(['admin', 'device']), async (req, res) => {
+  const { id } = req.params;
+
+  const { data: course, error: courseError } = await supabase
+    .from('courses').select('*').eq('course_id', id).single();
+  if (courseError || !course) return res.status(404).json({ error: 'Course not found' });
+
+  const { data: rpLinks } = await supabase
+    .from('course_resource_persons').select('*').eq('course_id', id);
+  const { data: allResourcePersons } = await supabase.from('resource_persons').select('*');
+  const resourcePersons = (rpLinks || []).map(link => ({
+    ...link,
+    resource_person: (allResourcePersons || []).find(rp => rp.trainer_id === link.trainer_id) || null
+  }));
+
+  const { data: coordLinks } = await supabase
+    .from('course_coordinators').select('*').eq('course_id', id);
+  const { data: allUsers } = await supabase.from('users').select('user_id, username, role');
+  const coordinators = (coordLinks || []).map(link => ({
+    ...link,
+    coordinator: (allUsers || []).find(u => u.user_id === link.coordinator_id) || null
+  }));
+
+  const { data: modules } = await supabase.from('modules').select('*').eq('course_id', id);
+
+  const { data: registrations } = await supabase.from('registrations').select('*').eq('course_id', id);
+  const { data: allStudents } = await supabase.from('students').select('*');
+  const { data: allPayments } = await supabase.from('payments').select('*').eq('course_id', id);
+
+  const students = (registrations || []).map(r => {
+    const student = (allStudents || []).find(s => s.student_id === r.student_id) || null;
+    const studentPayments = (allPayments || []).filter(p => p.student_id === r.student_id);
+    const debit = studentPayments.filter(p => p.type === 'debit').reduce((sum, p) => sum + Number(p.amount), 0);
+    const credit = studentPayments.filter(p => p.type === 'credit').reduce((sum, p) => sum + Number(p.amount), 0);
+    return {
+      registration: r,
+      student,
+      fee: Number(course.fee) || 0,
+      paid: credit,
+      balance: Math.max(debit - credit, 0)
+    };
+  });
+
+  res.json({ course, resourcePersons, coordinators, modules: modules || [], students });
+});
+
+// Replace the resource person assigned to a course
+app.put('/courses/:id/assign-resource-person', authenticate(['admin', 'device']), async (req, res) => {
+  const { id } = req.params;
+  const { trainer_id } = req.body;
+
+  await supabase.from('course_resource_persons').delete().eq('course_id', id);
+
+  const { data, error } = await supabase
+    .from('course_resource_persons')
+    .insert([{ course_id: id, trainer_id }])
+    .select();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ message: 'Resource person updated', assignment: data[0] });
+});
+
+// Replace the coordinator assigned to a course
+app.put('/courses/:id/assign-coordinator', authenticate(['admin', 'device']), async (req, res) => {
+  const { id } = req.params;
+  const { coordinator_id } = req.body;
+
+  await supabase.from('course_coordinators').delete().eq('course_id', id);
+
+  const { data, error } = await supabase
+    .from('course_coordinators')
+    .insert([{ course_id: id, coordinator_id }])
+    .select();
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ message: 'Coordinator updated', assignment: data[0] });
+});
+
+// Fee/balance for a specific student in a specific course
+app.get('/courses/:courseId/balance/:studentId', authenticate(['admin', 'device', 'student']), async (req, res) => {
+  const { courseId, studentId } = req.params;
+
+  if (req.user.role === 'student') {
+    const ownStudentId = await getStudentIdForUser(req.user.userId);
+    if (String(ownStudentId) !== String(studentId)) {
+      return res.status(403).json({ error: 'Not your record' });
+    }
+  }
+
+  const { data: course, error: courseError } = await supabase
+    .from('courses').select('fee').eq('course_id', courseId).single();
+  if (courseError || !course) return res.status(404).json({ error: 'Course not found' });
+
+  const { data: payments, error: payError } = await supabase
+    .from('payments').select('*').eq('course_id', courseId).eq('student_id', studentId);
+  if (payError) return res.status(500).json({ error: payError.message });
+
+  const debit = payments.filter(p => p.type === 'debit').reduce((sum, p) => sum + Number(p.amount), 0);
+  const credit = payments.filter(p => p.type === 'credit').reduce((sum, p) => sum + Number(p.amount), 0);
+  const fee = Number(course.fee) || 0;
+  const balance = Math.max(debit - credit, 0);
+
+  res.json({ fee, debit, paid: credit, balance });
+});
+
 app.post('/modules', authenticate(['admin']), async (req, res) => {
   const { course_id, module_name, credits } = req.body;
 
@@ -770,13 +907,35 @@ app.get('/registrations/my', authenticate(['student']), async (req, res) => {
   const studentId = await getStudentIdForUser(req.user.userId);
   if (!studentId) return res.status(404).json({ error: 'No student record linked to this account' });
 
-  const { data, error } = await supabase
+  const { data: registrations, error } = await supabase
     .from('registrations')
     .select('*')
     .eq('student_id', studentId);
 
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+
+  const { data: payments } = await supabase
+    .from('payments').select('*').eq('student_id', studentId);
+
+  const result = await Promise.all(registrations.map(async (r) => {
+    const { data: course } = await supabase
+      .from('courses').select('name, code, fee').eq('course_id', r.course_id).single();
+
+    const coursePayments = (payments || []).filter(p => p.course_id === r.course_id);
+    const debit = coursePayments.filter(p => p.type === 'debit').reduce((sum, p) => sum + Number(p.amount), 0);
+    const credit = coursePayments.filter(p => p.type === 'credit').reduce((sum, p) => sum + Number(p.amount), 0);
+
+    return {
+      ...r,
+      course_name: course?.name || null,
+      course_code: course?.code || null,
+      fee: Number(course?.fee) || 0,
+      paid: credit,
+      balance: Math.max(debit - credit, 0)
+    };
+  }));
+
+  res.json(result);
 });
 
 app.get('/registrations/student/:studentId', authenticate(['admin', 'device']), async (req, res) => {
@@ -815,6 +974,15 @@ app.get('/certificates/student/:studentId', authenticate(['admin', 'device']), a
 app.post('/registrations', authenticate(['admin', 'device']), async (req, res) => {
   const { student_id, course_id } = req.body;
 
+  const { data: existing } = await supabase
+    .from('registrations')
+    .select('registration_id')
+    .eq('student_id', student_id)
+    .eq('course_id', course_id);
+  if (existing && existing.length > 0) {
+    return res.status(400).json({ error: 'Student is already registered for this course' });
+  }
+
   const { data, error } = await supabase
     .from('registrations')
     .insert([{ student_id, course_id, status: 'registered' }])
@@ -827,21 +995,43 @@ app.post('/registrations', authenticate(['admin', 'device']), async (req, res) =
     .update({ registration_status: 'active' })
     .eq('student_id', student_id);
 
-  res.status(201).json({ message: 'Student registered for course', registration: data[0] });
+  // Automatically record the course fee as an amount owed, so balance can be tracked from here on
+  const { data: course } = await supabase.from('courses').select('fee').eq('course_id', course_id).single();
+  const fee = Number(course?.fee) || 0;
+  if (fee > 0) {
+    await supabase
+      .from('payments')
+      .insert([{ student_id, course_id, amount: fee, type: 'debit', status: 'completed' }]);
+  }
+
+  res.status(201).json({ message: 'Student registered for course', registration: data[0], fee });
 });
 
-app.get('/registrations/:courseId', authenticate(['admin', 'device']), async (req, res) => {
+app.get('/registrations/:courseId', authenticate(['admin', 'device', 'coordinator']), async (req, res) => {
   const { courseId } = req.params;
-  const { data, error } = await supabase
+
+  if (req.user.role === 'coordinator') {
+    const allowed = await isCoordinatorForCourse(req.user.userId, courseId);
+    if (!allowed) return res.status(403).json({ error: 'You are not assigned as coordinator for this course' });
+  }
+
+  const { data: registrations, error } = await supabase
     .from('registrations')
     .select('*')
     .eq('course_id', courseId);
 
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+
+  const { data: students } = await supabase.from('students').select('student_id, full_name, email');
+  const result = registrations.map(r => ({
+    ...r,
+    student: (students || []).find(s => s.student_id === r.student_id) || null
+  }));
+
+  res.json(result);
 });
 
-app.post('/attendance', authenticate(['resource_person', 'admin', 'device']), async (req, res) => {
+app.post('/attendance', authenticate(['resource_person', 'admin', 'device', 'coordinator']), async (req, res) => {
   const { session_id, student_id, status } = req.body;
 
   const { data, error } = await supabase
@@ -875,7 +1065,11 @@ function computeGrade(marks) {
 }
 
 app.post('/assessments', authenticate(['resource_person', 'admin']), async (req, res) => {
-  const { student_id, course_id, module_id, marks } = req.body;
+  const { student_id, course_id, module_id, marks, eval_type } = req.body;
+
+  if (!['assignment', 'exam'].includes(eval_type)) {
+    return res.status(400).json({ error: 'eval_type must be "assignment" or "exam"' });
+  }
 
   let markedBy = req.user.userId;
   if (req.user.role === 'resource_person') {
@@ -889,7 +1083,7 @@ app.post('/assessments', authenticate(['resource_person', 'admin']), async (req,
   const { data, error } = await supabase
     .from('assessments')
     .insert([{
-      student_id, course_id, module_id, marks, grade,
+      student_id, course_id, module_id, marks, grade, eval_type,
       published: false,
       reviewed: false,
       marked_by: markedBy
@@ -996,9 +1190,28 @@ app.get('/assessments/my', authenticate(['student']), async (req, res) => {
 app.post('/payments', authenticate(['admin', 'device']), async (req, res) => {
   const { student_id, course_id, amount, type, status } = req.body;
 
+  const numAmount = Number(amount);
+  if (!numAmount || numAmount <= 0) {
+    return res.status(400).json({ error: 'Amount must be a positive number' });
+  }
+
+  if (type === 'credit') {
+    const { data: existingPayments, error: payError } = await supabase
+      .from('payments').select('*').eq('student_id', student_id).eq('course_id', course_id);
+    if (payError) return res.status(500).json({ error: payError.message });
+
+    const debit = existingPayments.filter(p => p.type === 'debit').reduce((sum, p) => sum + Number(p.amount), 0);
+    const credit = existingPayments.filter(p => p.type === 'credit').reduce((sum, p) => sum + Number(p.amount), 0);
+    const remainingBalance = debit - credit;
+
+    if (numAmount > remainingBalance) {
+      return res.status(400).json({ error: `Payment exceeds outstanding balance of ${remainingBalance}` });
+    }
+  }
+
   const { data, error } = await supabase
     .from('payments')
-    .insert([{ student_id, course_id, amount, type, status }])
+    .insert([{ student_id, course_id, amount: numAmount, type, status }])
     .select();
 
   if (error) return res.status(500).json({ error: error.message });
@@ -1097,18 +1310,64 @@ app.post('/certificates', authenticate(['admin']), async (req, res) => {
     return res.status(400).json({ error: 'Student has outstanding balance; certificate cannot be issued yet' });
   }
 
-  const verificationCode = 'CERT-' + Date.now();
+  const today = new Date();
+  const datePart = today.toISOString().split('T')[0].replace(/-/g, '');
+  const { data: todaysCerts } = await supabase
+    .from('certificates')
+    .select('verification_code')
+    .like('verification_code', `FCPL${datePart}%`);
+  const seq = String((todaysCerts ? todaysCerts.length : 0) + 1).padStart(2, '0');
+  const verificationCode = `FCPL${datePart}${seq}`;
+
   const { data, error } = await supabase
     .from('certificates')
     .insert([{
       student_id, course_id,
-      issue_date: new Date().toISOString().split('T')[0],
+      issue_date: today.toISOString().split('T')[0],
       verification_code: verificationCode
     }])
     .select();
 
   if (error) return res.status(500).json({ error: error.message });
   res.status(201).json({ message: 'Certificate issued', certificate: data[0] });
+});
+
+// Public: download the certificate as a formatted PDF, by verification code
+app.get('/certificates/:code/pdf', async (req, res) => {
+  const { code } = req.params;
+
+  const { data: cert, error } = await supabase
+    .from('certificates').select('*').eq('verification_code', code).single();
+  if (error || !cert) return res.status(404).json({ error: 'Certificate not found' });
+
+  const { data: student } = await supabase
+    .from('students').select('full_name').eq('student_id', cert.student_id).single();
+  const { data: course } = await supabase
+    .from('courses').select('*').eq('course_id', cert.course_id).single();
+  const { data: rpLinks } = await supabase
+    .from('course_resource_persons').select('trainer_id').eq('course_id', cert.course_id);
+  let resourcePerson = null;
+  if (rpLinks && rpLinks.length > 0) {
+    const { data: rp } = await supabase
+      .from('resource_persons').select('*').eq('trainer_id', rpLinks[0].trainer_id).single();
+    resourcePerson = rp;
+  }
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${code}.pdf"`);
+
+  generateCertificatePdf({
+    certificateNo: cert.verification_code,
+    studentName: student?.full_name || 'Participant',
+    programTitle: course?.name || 'Training Program',
+    durationLabel: course?.duration ? `${course.duration} Training Program on` : 'Training Program on',
+    eventDate: course?.start_date
+      ? new Date(course.start_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+      : new Date(cert.issue_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+    venue: course?.venue || '—',
+    resourcePersonName: resourcePerson?.name,
+    resourcePersonQualifications: resourcePerson?.qualifications
+  }, res);
 });
 // Public: find a student's certificate by exact student_id or exact full_name match
 app.get('/certificates/find-by-student', async (req, res) => {

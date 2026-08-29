@@ -23,6 +23,7 @@ export default function ResourcePersonDashboard() {
   const [asStudentId, setAsStudentId] = useState('');
   const [asCourseId, setAsCourseId] = useState('');
   const [asModuleId, setAsModuleId] = useState('');
+  const [evalType, setEvalType] = useState('assignment');
   const [marks, setMarks] = useState('');
 
   const navigate = useNavigate();
@@ -118,12 +119,14 @@ export default function ResourcePersonDashboard() {
         student_id: asStudentId,
         course_id: asCourseId,
         module_id: asModuleId,
+        eval_type: evalType,
         marks
       }, { headers: getHeaders() });
       setMessage(`Marks recorded (pending coordinator review). Assessment ID: ${res.data.assessment.assessment_id}, Grade: ${res.data.assessment.grade}`);
       setAsStudentId('');
       setAsCourseId('');
       setAsModuleId('');
+      setEvalType('assignment');
       setMarks('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to record marks');
@@ -261,6 +264,13 @@ export default function ResourcePersonDashboard() {
               No modules found for this course yet — ask admin to create them.
             </p>
           )}
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Evaluation Method</label><br />
+          <select value={evalType} onChange={e => setEvalType(e.target.value)} style={{ width: '100%', padding: '8px' }} required>
+            <option value="assignment">Assignment</option>
+            <option value="exam">Exam</option>
+          </select>
         </div>
         <div style={{ marginBottom: '10px' }}>
           <label>Marks</label><br />
