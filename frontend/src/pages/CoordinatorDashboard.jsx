@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
 export default function CoordinatorDashboard() {
+  const [myCourses, setMyCourses] = useState([]);
   const [courseId, setCourseId] = useState('');
   const [pendingAssessments, setPendingAssessments] = useState([]);
   const [students, setStudents] = useState([]);
@@ -20,6 +21,12 @@ export default function CoordinatorDashboard() {
     const token = localStorage.getItem('token');
     return { Authorization: `Bearer ${token}` };
   };
+
+  useEffect(() => {
+    axios.get('https://fetchtms.onrender.com/course-coordinators/my', { headers: getHeaders() })
+      .then(res => setMyCourses(res.data))
+      .catch(() => {});
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -83,6 +90,13 @@ export default function CoordinatorDashboard() {
     }
   };
 
+  const selectCourse = (id) => {
+    setCourseId(id);
+    setAttCourseId(id);
+    loadPending({ preventDefault: () => {} });
+    loadCourseStudentsAndSessions({ preventDefault: () => {} });
+  };
+
   return (
     <div style={{ maxWidth: '700px', margin: '40px auto', fontFamily: 'sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -93,6 +107,19 @@ export default function CoordinatorDashboard() {
 
       {message && <p style={{ color: 'green' }}>{message}</p>}
       {error && <p style={{ color: 'red' }}>{error}</p>}
+
+      <h3>My Assigned Courses</h3>
+      {myCourses.length > 0 ? (
+        <div className="btn-row" style={{ marginBottom: '20px' }}>
+          {myCourses.map(c => (
+            <button key={c.course_id} onClick={() => selectCourse(c.course_id)}>
+              {c.course_code ? `${c.course_code} — ${c.course_name}` : `Course ${c.course_id}`}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p style={{ marginBottom: '20px', color: 'gray' }}>No courses assigned to you yet — ask an admin to assign you as coordinator.</p>
+      )}
 
       <h3>View Pending Marks for Review</h3>
       <form onSubmit={loadPending} style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>

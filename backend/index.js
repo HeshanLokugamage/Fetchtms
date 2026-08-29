@@ -6,6 +6,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { generateCertificatePdf } = require('./certificate');
 const { generateTranscriptPdf } = require('./transcript');
+const { generateInvoicePdf } = require('./invoice');
+const { generateReceiptPdf } = require('./receipt');
 
 const app = express();
 app.use(cors());
@@ -143,6 +145,26 @@ app.post('/vendors', authenticate(['admin']), async (req, res) => {
   res.status(201).json({ message: 'Vendor added', vendor: data[0] });
 });
 
+async function attachCourseInfo(rows) {
+  const courseIds = [...new Set(rows.map(r => r.course_id).filter(Boolean))];
+  if (courseIds.length === 0) return rows;
+  const { data: courses } = await supabase.from('courses').select('course_id, code, name').in('course_id', courseIds);
+  return rows.map(r => {
+    const c = (courses || []).find(c => c.course_id === r.course_id);
+    return { ...r, course_code: c ? c.code : null, course_name: c ? c.name : null };
+  });
+}
+
+async function attachModuleInfo(rows) {
+  const moduleIds = [...new Set(rows.map(r => r.module_id).filter(Boolean))];
+  if (moduleIds.length === 0) return rows;
+  const { data: modules } = await supabase.from('modules').select('module_id, module_name').in('module_id', moduleIds);
+  return rows.map(r => {
+    const m = (modules || []).find(m => m.module_id === r.module_id);
+    return { ...r, module_name: m ? m.module_name : null };
+  });
+}
+
 async function getAccountIdByCode(code) {
   const { data, error } = await supabase
     .from('chart_of_accounts')
@@ -169,6 +191,7 @@ app.post('/journal/receipt', authenticate(['admin']), async (req, res) => {
       entry_date,
       description: description || 'Student payment receipt',
       entry_type: 'receipt',
+      payment_method_id: payment_method_id || null,
       created_by: req.user.userId,
       reversed: false
     }])
@@ -187,6 +210,43 @@ app.post('/journal/receipt', authenticate(['admin']), async (req, res) => {
   if (linesError) return res.status(500).json({ error: linesError.message });
 
   res.status(201).json({ message: 'Receipt recorded', entry });
+});
+
+// Printable/downloadable PDF for a specific receipt journal entry
+app.get('/journal/receipt/:entryId/pdf', authenticate(['admin']), async (req, res) => {
+  const { entryId } = req.params;
+
+  const { data: entry, error: entryError } = await supabase
+    .from('journal_entries').select('*').eq('entry_id', entryId).eq('entry_type', 'receipt').single();
+  if (entryError || !entry) return res.status(404).json({ error: 'Receipt not found' });
+
+  const { data: lines } = await supabase.from('journal_lines').select('*').eq('entry_id', entryId);
+  const studentLine = (lines || []).find(l => l.student_id);
+  const amount = studentLine ? Number(studentLine.debit_amount || studentLine.credit_amount) : 0;
+
+  let studentName = 'Student';
+  if (studentLine?.student_id) {
+    const { data: student } = await supabase.from('students').select('full_name').eq('student_id', studentLine.student_id).single();
+    if (student) studentName = student.full_name;
+  }
+
+  let paymentMethodName = null;
+  if (entry.payment_method_id) {
+    const { data: method } = await supabase.from('payment_methods').select('name').eq('method_id', entry.payment_method_id).single();
+    if (method) paymentMethodName = method.name;
+  }
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="receipt-${entryId}.pdf"`);
+
+  generateReceiptPdf({
+    receiptNo: `RCP-${entryId}`,
+    receiptDate: entry.entry_date,
+    studentName,
+    amount,
+    paymentMethodName,
+    description: entry.description
+  }, res);
 });
 
 app.post('/journal/payment', authenticate(['admin']), async (req, res) => {
@@ -855,7 +915,8 @@ app.get('/course-coordinators/my', authenticate(['coordinator']), async (req, re
     .eq('coordinator_id', req.user.userId);
 
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  const enriched = await attachCourseInfo(data);
+  res.json(enriched);
 });
 
 app.post('/course-sessions', authenticate(['admin', 'device', 'resource_person']), async (req, res) => {
@@ -947,7 +1008,8 @@ app.get('/registrations/student/:studentId', authenticate(['admin', 'device']), 
     .eq('student_id', studentId);
 
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  const enriched = await attachCourseInfo(data);
+  res.json(enriched);
 });
 
 app.get('/assessments/student/:studentId', authenticate(['admin', 'device']), async (req, res) => {
@@ -958,7 +1020,8 @@ app.get('/assessments/student/:studentId', authenticate(['admin', 'device']), as
     .eq('student_id', studentId);
 
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  const enriched = await attachModuleInfo(await attachCourseInfo(data));
+  res.json(enriched);
 });
 
 app.get('/certificates/student/:studentId', authenticate(['admin', 'device']), async (req, res) => {
@@ -969,7 +1032,8 @@ app.get('/certificates/student/:studentId', authenticate(['admin', 'device']), a
     .eq('student_id', studentId);
 
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  const enriched = await attachCourseInfo(data);
+  res.json(enriched);
 });
 
 app.delete('/registrations/:id', authenticate(['admin', 'device']), async (req, res) => {
@@ -1033,6 +1097,42 @@ app.post('/registrations', authenticate(['admin', 'device']), async (req, res) =
   }
 
   res.status(201).json({ message: 'Student registered for course', registration: data[0], fee });
+});
+
+// Invoice for a course registration
+app.get('/registrations/:id/invoice/pdf', authenticate(['admin', 'device', 'student']), async (req, res) => {
+  const { id } = req.params;
+
+  const { data: registration, error: regError } = await supabase
+    .from('registrations').select('*').eq('registration_id', id).single();
+  if (regError || !registration) return res.status(404).json({ error: 'Registration not found' });
+
+  if (req.user.role === 'student') {
+    const ownStudentId = await getStudentIdForUser(req.user.userId);
+    if (String(ownStudentId) !== String(registration.student_id)) {
+      return res.status(403).json({ error: 'Not your record' });
+    }
+  }
+
+  const { data: student } = await supabase
+    .from('students').select('full_name, address, contact_number').eq('student_id', registration.student_id).single();
+  const { data: course } = await supabase
+    .from('courses').select('code, name, description, fee').eq('course_id', registration.course_id).single();
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="invoice-${id}.pdf"`);
+
+  generateInvoicePdf({
+    invoiceNo: `INV-${id}`,
+    invoiceDate: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+    studentName: student?.full_name || 'Student',
+    studentAddress: student?.address || null,
+    studentContact: student?.contact_number || null,
+    courseCode: course?.code || '\u2014',
+    courseName: course?.name || 'Course',
+    courseDescription: course?.description || null,
+    fee: Number(course?.fee) || 0
+  }, res);
 });
 
 app.get('/registrations/:courseId', authenticate(['admin', 'device', 'coordinator']), async (req, res) => {
@@ -1231,7 +1331,8 @@ app.get('/assessments/my', authenticate(['student']), async (req, res) => {
     .eq('published', true);
 
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  const enriched = await attachModuleInfo(await attachCourseInfo(data));
+  res.json(enriched);
 });
 
 app.post('/payments', authenticate(['admin', 'device']), async (req, res) => {
@@ -1275,7 +1376,8 @@ app.get('/payments/my', authenticate(['student']), async (req, res) => {
     .eq('student_id', studentId);
 
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  const enriched = await attachCourseInfo(data);
+  res.json(enriched);
 });
 
 app.get('/payments/student/:studentId', authenticate(['admin', 'device']), async (req, res) => {
@@ -1289,9 +1391,10 @@ app.get('/payments/student/:studentId', authenticate(['admin', 'device']), async
 
   const totalDebit = data.filter(p => p.type === 'debit').reduce((sum, p) => sum + Number(p.amount), 0);
   const totalCredit = data.filter(p => p.type === 'credit').reduce((sum, p) => sum + Number(p.amount), 0);
+  const enrichedPayments = await attachCourseInfo(data);
 
   res.json({
-    payments: data,
+    payments: enrichedPayments,
     totalDebit,
     totalCredit,
     outstanding: totalDebit - totalCredit

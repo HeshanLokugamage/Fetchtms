@@ -212,20 +212,28 @@ export default function CourseDetailsPage() {
               <td>{s.balance}</td>
               <td>{s.registration.status}</td>
               <td>
-                {s.paid > 0 ? (
-                  <span style={{ color: 'gray', fontSize: '12px' }}>Payments made — cannot cancel</span>
-                ) : (
-                  <button
-                    onClick={() => {
-                      if (window.confirm(`Cancel ${s.student?.full_name || 'this student'}'s registration and reverse the fee?`)) {
-                        handleCancelRegistration(s.registration.registration_id);
-                      }
-                    }}
-                    style={{ padding: '4px 10px' }}
+                <div className="btn-row">
+                  <a
+                    href={`https://fetchtms.onrender.com/registrations/${s.registration.registration_id}/invoice/pdf`}
+                    target="_blank"
+                    rel="noreferrer"
                   >
-                    Cancel Registration
-                  </button>
-                )}
+                    Invoice
+                  </a>
+                  {s.paid > 0 ? (
+                    <span style={{ color: 'gray', fontSize: '12px' }}>Payments made — cannot cancel</span>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Cancel ${s.student?.full_name || 'this student'}'s registration and reverse the fee?`)) {
+                          handleCancelRegistration(s.registration.registration_id);
+                        }
+                      }}
+                    >
+                      Cancel Registration
+                    </button>
+                  )}
+                </div>
               </td>
             </tr>
           ))}

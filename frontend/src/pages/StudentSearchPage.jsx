@@ -104,11 +104,11 @@ export default function StudentSearchPage() {
             <h4>Registered Courses</h4>
             {detail.registrations && detail.registrations.length > 0 ? (
               <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '12px' }}>
-                <thead><tr><th>Course ID</th><th>Status</th><th>Registered At</th></tr></thead>
+                <thead><tr><th>Course</th><th>Status</th><th>Registered At</th></tr></thead>
                 <tbody>
                   {detail.registrations.map(r => (
                     <tr key={r.registration_id}>
-                      <td>{r.course_id}</td><td>{r.status}</td><td>{r.registered_at}</td>
+                      <td>{r.course_code ? `${r.course_code} — ${r.course_name}` : (r.course_name || r.course_id)}</td><td>{r.status}</td><td>{r.registered_at}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -118,11 +118,13 @@ export default function StudentSearchPage() {
             <h4>Marks / Grades</h4>
             {detail.assessments && detail.assessments.length > 0 ? (
               <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '12px' }}>
-                <thead><tr><th>Course ID</th><th>Marks</th><th>Grade</th><th>Published</th></tr></thead>
+                <thead><tr><th>Course</th><th>Module</th><th>Marks</th><th>Grade</th><th>Published</th></tr></thead>
                 <tbody>
                   {detail.assessments.map(a => (
                     <tr key={a.assessment_id}>
-                      <td>{a.course_id}</td><td>{a.marks}</td><td>{a.grade}</td><td>{a.published ? 'Yes' : 'No'}</td>
+                      <td>{a.course_code ? `${a.course_code} — ${a.course_name}` : (a.course_name || a.course_id)}</td>
+                      <td>{a.module_name || '—'}</td>
+                      <td>{a.marks}</td><td>{a.grade}</td><td>{a.published ? 'Yes' : 'No'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -132,11 +134,11 @@ export default function StudentSearchPage() {
             <h4>Certificates</h4>
             {detail.certificates && detail.certificates.length > 0 ? (
               <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '12px' }}>
-                <thead><tr><th>Course ID</th><th>Verification Code</th><th>Issue Date</th></tr></thead>
+                <thead><tr><th>Course</th><th>Verification Code</th><th>Issue Date</th></tr></thead>
                 <tbody>
                   {detail.certificates.map(c => (
                     <tr key={c.certificate_id}>
-                      <td>{c.course_id}</td><td>{c.verification_code}</td><td>{c.issue_date}</td>
+                      <td>{c.course_code ? `${c.course_code} — ${c.course_name}` : (c.course_name || c.course_id)}</td><td>{c.verification_code}</td><td>{c.issue_date}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -150,11 +152,11 @@ export default function StudentSearchPage() {
                 <p><strong>Total Debit:</strong> {detail.payments.totalDebit} | <strong>Total Credit:</strong> {detail.payments.totalCredit}</p>
                 {detail.payments.payments.length > 0 ? (
                   <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse', width: '100%' }}>
-                    <thead><tr><th>Course ID</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead>
+                    <thead><tr><th>Course</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead>
                     <tbody>
                       {detail.payments.payments.map(p => (
                         <tr key={p.payment_id}>
-                          <td>{p.course_id}</td><td>{p.type}</td><td>{p.amount}</td><td>{p.status}</td>
+                          <td>{p.course_code ? `${p.course_code} — ${p.course_name}` : (p.course_name || p.course_id)}</td><td>{p.type}</td><td>{p.amount}</td><td>{p.status}</td>
                         </tr>
                       ))}
                     </tbody>

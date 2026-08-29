@@ -11,6 +11,7 @@ export default function RegisterCoursePage() {
   const [courses, setCourses] = useState([]);
   const [regStudentId, setRegStudentId] = useState('');
   const [regCourseId, setRegCourseId] = useState('');
+  const [issuedRegistrationId, setIssuedRegistrationId] = useState('');
 
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -31,12 +32,13 @@ export default function RegisterCoursePage() {
 
   const handleRegisterForCourse = async (e) => {
     e.preventDefault();
-    setMessage(''); setError('');
+    setMessage(''); setError(''); setIssuedRegistrationId('');
     try {
       const res = await axios.post('https://fetchtms.onrender.com/registrations', {
         student_id: regStudentId, course_id: regCourseId
       }, { headers: getHeaders() });
       setMessage(`Student registered for course successfully. Amount to be paid: ${res.data.fee}`);
+      setIssuedRegistrationId(res.data.registration.registration_id);
       setRegStudentId(''); setRegCourseId('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to register student for course');
@@ -51,6 +53,18 @@ export default function RegisterCoursePage() {
       </div>
 
       {message && <p style={{ color: 'green' }}>{message}</p>}
+      {issuedRegistrationId && (
+        <p>
+          <a
+            href={`https://fetchtms.onrender.com/registrations/${issuedRegistrationId}/invoice/pdf`}
+            target="_blank"
+            rel="noreferrer"
+            style={{ padding: '8px 16px', display: 'inline-block', background: '#2e7d32', color: 'white', borderRadius: '4px', textDecoration: 'none' }}
+          >
+            Download Invoice
+          </a>
+        </p>
+      )}
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
       <form onSubmit={handleRegisterForCourse}>

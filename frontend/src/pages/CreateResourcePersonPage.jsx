@@ -45,7 +45,10 @@ export default function CreateResourcePersonPage() {
     <div style={{ maxWidth: '500px', margin: '40px auto', fontFamily: 'sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2>Create Resource Person</h2>
-        <button onClick={() => navigate('/admin/operations')} style={{ padding: '8px 16px' }}>← Back</button>
+        <div className="btn-row">
+          <button onClick={() => navigate('/admin/operations/resource-persons')}>View List</button>
+          <button onClick={() => navigate('/admin/operations')}>← Back</button>
+        </div>
       </div>
 
       {message && <p style={{ color: 'green' }}>{message}</p>}

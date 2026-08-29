@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
+const todayISO = () => new Date().toISOString().split('T')[0];
+
 export default function ReceiptJournalPage() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -10,11 +12,14 @@ export default function ReceiptJournalPage() {
   const [students, setStudents] = useState([]);
   const [paymentMethods, setPaymentMethods] = useState([]);
 
-  const [entryDate, setEntryDate] = useState('');
+  const [entryDate, setEntryDate] = useState(todayISO());
   const [studentId, setStudentId] = useState('');
   const [amount, setAmount] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('');
   const [description, setDescription] = useState('');
+
+  const [outstanding, setOutstanding] = useState(null);
+  const [issuedEntryId, setIssuedEntryId] = useState('');
 
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -31,11 +36,18 @@ export default function ReceiptJournalPage() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (!studentId) { setOutstanding(null); return; }
+    axios.get(`https://fetchtms.onrender.com/payments/student/${studentId}`, { headers: getHeaders() })
+      .then(res => setOutstanding(res.data.outstanding))
+      .catch(() => setOutstanding(null));
+  }, [studentId]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setMessage(''); setError('');
+    setMessage(''); setError(''); setIssuedEntryId('');
     try {
-      await axios.post('https://fetchtms.onrender.com/journal/receipt', {
+      const res = await axios.post('https://fetchtms.onrender.com/journal/receipt', {
         entry_date: entryDate,
         student_id: studentId,
         amount,
@@ -43,7 +55,8 @@ export default function ReceiptJournalPage() {
         description
       }, { headers: getHeaders() });
       setMessage('Receipt recorded successfully');
-      setEntryDate(''); setStudentId(''); setAmount(''); setPaymentMethodId(''); setDescription('');
+      setIssuedEntryId(res.data.entry.entry_id);
+      setStudentId(''); setAmount(''); setPaymentMethodId(''); setDescription(''); setEntryDate(todayISO());
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to record receipt');
     }
@@ -53,10 +66,22 @@ export default function ReceiptJournalPage() {
     <div style={{ maxWidth: '500px', margin: '40px auto', fontFamily: 'sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2>Receipt Journal</h2>
-        <button onClick={() => navigate('/admin/operations')} style={{ padding: '8px 16px' }}>← Back</button>
+        <button onClick={() => navigate('/admin/operations')}>← Back</button>
       </div>
 
       {message && <p style={{ color: 'green' }}>{message}</p>}
+      {issuedEntryId && (
+        <p>
+          <a
+            href={`https://fetchtms.onrender.com/journal/receipt/${issuedEntryId}/pdf`}
+            target="_blank"
+            rel="noreferrer"
+            style={{ padding: '8px 16px', display: 'inline-block', background: '#2e7d32', color: 'white', borderRadius: '4px', textDecoration: 'none' }}
+          >
+            View / Print Receipt
+          </a>
+        </p>
+      )}
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
       <form onSubmit={handleSubmit}>
@@ -72,10 +97,15 @@ export default function ReceiptJournalPage() {
               <option key={s.student_id} value={s.student_id}>{s.full_name}</option>
             ))}
           </select>
+          {outstanding !== null && (
+            <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>
+              Outstanding balance (all courses): {outstanding}
+            </p>
+          )}
         </div>
         <div style={{ marginBottom: '10px' }}>
           <label>Amount</label><br />
-          <input type="number" value={amount} onChange={e => setAmount(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+          <input type="number" min="0.01" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
         </div>
         <div style={{ marginBottom: '10px' }}>
           <label>Payment Method</label><br />
@@ -90,7 +120,7 @@ export default function ReceiptJournalPage() {
           <label>Description (optional)</label><br />
           <input value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', padding: '8px' }} />
         </div>
-        <button type="submit" style={{ padding: '8px 16px' }}>Record Receipt</button>
+        <button type="submit">Record Receipt</button>
       </form>
     </div>
   );

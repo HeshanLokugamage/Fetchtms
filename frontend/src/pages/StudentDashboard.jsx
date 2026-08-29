@@ -118,13 +118,14 @@ export default function StudentDashboard() {
       <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '30px' }}>
         <thead>
           <tr>
-            <th>Course ID</th><th>Evaluation</th><th>Marks</th><th>Grade</th>
+            <th>Course</th><th>Module</th><th>Evaluation</th><th>Marks</th><th>Grade</th>
           </tr>
         </thead>
         <tbody>
           {assessments.map(a => (
             <tr key={a.assessment_id}>
-              <td>{a.course_id}</td>
+              <td>{a.course_code ? `${a.course_code} — ${a.course_name}` : (a.course_name || a.course_id)}</td>
+              <td>{a.module_name || '—'}</td>
               <td style={{ textTransform: 'capitalize' }}>{a.eval_type || '—'}</td>
               <td>{a.marks}</td>
               <td>{a.grade}</td>
@@ -137,13 +138,13 @@ export default function StudentDashboard() {
       <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%' }}>
         <thead>
           <tr>
-            <th>Course ID</th><th>Type</th><th>Amount</th><th>Status</th>
+            <th>Course</th><th>Type</th><th>Amount</th><th>Status</th>
           </tr>
         </thead>
         <tbody>
           {payments.map(p => (
             <tr key={p.payment_id}>
-              <td>{p.course_id}</td>
+              <td>{p.course_code ? `${p.course_code} — ${p.course_name}` : (p.course_name || p.course_id)}</td>
               <td>{p.type}</td>
               <td>{p.amount}</td>
               <td>{p.status}</td>

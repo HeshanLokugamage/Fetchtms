@@ -19,6 +19,7 @@ import TranscriptPage from './pages/TranscriptPage.jsx'
 import AssignResourcePersonPage from './pages/AssignResourcePersonPage.jsx'
 import RegisterCoursePage from './pages/RegisterCoursePage.jsx'
 import CreateResourcePersonPage from './pages/CreateResourcePersonPage.jsx'
+import ResourcePersonsListPage from './pages/ResourcePersonsListPage.jsx'
 import CreateUserPage from './pages/CreateUserPage.jsx'
 import AssignCoordinatorPage from './pages/AssignCoordinatorPage.jsx'
 import ReceiptJournalPage from './pages/ReceiptJournalPage.jsx'
@@ -102,6 +103,10 @@ createRoot(document.getElementById('root')).render(
         <Route
           path="/admin/operations/create-resource-person"
           element={<ProtectedRoute role="admin"><CreateResourcePersonPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/operations/resource-persons"
+          element={<ProtectedRoute role="admin"><ResourcePersonsListPage /></ProtectedRoute>}
         />
         <Route
           path="/admin/operations/create-user"
