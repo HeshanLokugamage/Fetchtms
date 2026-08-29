@@ -32,46 +32,17 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #66bb6a;
-    --accent-bg: rgba(255, 167, 38, 0.15);
-    --accent-border: rgba(255, 167, 38, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
 html, body {
   margin: 0;
   min-height: 100vh;
 }
 
 body {
-  background-image: linear-gradient(rgba(232, 245, 233, 0.9), rgba(232, 245, 233, 0.9)), url('/logo.jpg');
-  background-repeat: no-repeat, no-repeat;
-  background-position: center, center;
-  background-size: cover, 350px;
-  background-attachment: fixed, fixed;
-  filter: brightness(0.97);
+  background: #f3f7f3;
 }
 
 #root {
   width: 100%;
-  max-width: 1126px;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
   min-height: 100svh;
   display: flex;
   flex-direction: column;
@@ -125,19 +96,41 @@ code {
 .app-header {
   background: linear-gradient(135deg, var(--accent-green) 0%, #388e3c 100%);
   color: #fff;
-  padding: 16px 24px;
+  padding: 14px 28px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 16px;
   border-bottom: 4px solid var(--accent-orange);
   box-shadow: var(--shadow);
 }
 
+.app-header-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #fff;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.app-header-text {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
 .app-header h1 {
-  font-size: 22px;
+  font-size: 20px;
   margin: 0;
   color: #fff;
   letter-spacing: 0.5px;
+}
+
+.app-header-text span {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.3px;
 }
 
 button {
@@ -154,4 +147,141 @@ button[type="submit"], .btn-primary {
 
 button[type="submit"]:hover, .btn-primary:hover {
   background: #256428;
+}
+
+/* ===== Global page & component theme (Phase M) ===== */
+
+.page-content {
+  flex: 1;
+  padding: 32px 16px 60px;
+  box-sizing: border-box;
+}
+
+/* Every page's outer wrapper div becomes a direct child of .page-content —
+   give it a consistent card look without editing every page file. */
+.page-content > div {
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(46, 125, 50, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
+  padding: 28px 32px;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.page-content h2 {
+  color: var(--accent-green);
+  border-bottom: 3px solid var(--accent-orange);
+  padding-bottom: 10px;
+  display: inline-block;
+}
+
+.page-content h3 {
+  color: var(--text-h);
+  margin-top: 28px;
+  margin-bottom: 12px;
+  font-size: 18px;
+  border-left: 4px solid var(--accent-orange);
+  padding-left: 10px;
+}
+
+/* Buttons */
+.page-content button {
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text-h);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+}
+
+.page-content button:hover {
+  border-color: var(--accent-green);
+  background: #f1f8f1;
+}
+
+.page-content button:active {
+  transform: scale(0.98);
+}
+
+.page-content button[type="submit"] {
+  background: var(--accent-green);
+  color: #fff;
+  border-color: var(--accent-green);
+  font-weight: 600;
+}
+
+.page-content button[type="submit"]:hover {
+  background: #256428;
+}
+
+.page-content button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Forms */
+.page-content label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.page-content input,
+.page-content select,
+.page-content textarea {
+  font: inherit;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  background: #fff;
+  color: var(--text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.page-content input:focus,
+.page-content select:focus,
+.page-content textarea:focus {
+  outline: none;
+  border-color: var(--accent-green);
+  box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.15);
+}
+
+/* Tables */
+.page-content table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 14px;
+}
+
+.page-content table thead tr {
+  background: var(--accent-green);
+}
+
+.page-content table th {
+  color: #fff;
+  text-align: left;
+  padding: 10px 12px;
+  font-weight: 600;
+}
+
+.page-content table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.page-content table tbody tr:nth-child(even) {
+  background: #f7faf7;
+}
+
+.page-content table tbody tr:hover {
+  background: #eef6ee;
+}
+
+/* Links inside pages (e.g. certificate/transcript download links) */
+.page-content a {
+  color: var(--accent-green);
 }

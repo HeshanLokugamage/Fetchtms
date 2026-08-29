@@ -42,6 +42,7 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
       <Header />
+      <main className="page-content">
       <Routes>
         <Route path="/" element={<Navigate to="/login" />} />
         <Route path="/login" element={<App />} />
@@ -171,6 +172,7 @@ createRoot(document.getElementById('root')).render(
           element={<ProtectedRoute role="coordinator"><CoordinatorDashboard /></ProtectedRoute>}
         />
       </Routes>
+      </main>
     </BrowserRouter>
   </StrictMode>,
 )

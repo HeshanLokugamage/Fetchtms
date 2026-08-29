@@ -72,65 +72,68 @@ function App() {
   };
 
   return (
-    <div style={{ maxWidth: '400px', margin: '100px auto', fontFamily: 'sans-serif' }}>
+    <div style={{ maxWidth: '380px', margin: '60px auto' }}>
       {!showPasswordPrompt ? (
         <>
-          <h2>FetchTMS Login</h2>
+          <h2 style={{ textAlign: 'center', display: 'block' }}>Sign In</h2>
+          <p style={{ textAlign: 'center', color: '#777', fontSize: '13px', marginBottom: '20px' }}>
+            FetchTMS — Training Management System
+          </p>
           <form onSubmit={handleLogin}>
-            <div style={{ marginBottom: '10px' }}>
+            <div style={{ marginBottom: '14px' }}>
               <label>Username</label><br />
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                style={{ width: '100%', padding: '8px' }}
+                style={{ width: '100%', marginTop: '4px' }}
               />
             </div>
-            <div style={{ marginBottom: '10px' }}>
+            <div style={{ marginBottom: '18px' }}>
               <label>Password</label><br />
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                style={{ width: '100%', padding: '8px' }}
+                style={{ width: '100%', marginTop: '4px' }}
               />
             </div>
-            <button type="submit" style={{ padding: '8px 16px' }}>Log In</button>
+            <button type="submit" style={{ width: '100%' }}>Log In</button>
           </form>
-          {message && <p style={{ marginTop: '15px' }}>{message}</p>}
+          {message && <p style={{ marginTop: '15px', color: '#c62828', textAlign: 'center' }}>{message}</p>}
         </>
       ) : (
         <div>
           <h2>Change Your Password?</h2>
-          <p>Do you wish to change your password now?</p>
+          <p style={{ color: '#666', marginBottom: '16px' }}>Do you wish to change your password now?</p>
 
-          {passwordError && <p style={{ color: 'red' }}>{passwordError}</p>}
+          {passwordError && <p style={{ color: '#c62828' }}>{passwordError}</p>}
 
           <form onSubmit={handleChangePassword} style={{ marginBottom: '15px' }}>
-            <div style={{ marginBottom: '10px' }}>
+            <div style={{ marginBottom: '14px' }}>
               <label>New Password</label><br />
               <input
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                style={{ width: '100%', padding: '8px' }}
+                style={{ width: '100%', marginTop: '4px' }}
                 required
               />
             </div>
-            <div style={{ marginBottom: '10px' }}>
+            <div style={{ marginBottom: '14px' }}>
               <label>Confirm New Password</label><br />
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                style={{ width: '100%', padding: '8px' }}
+                style={{ width: '100%', marginTop: '4px' }}
                 required
               />
             </div>
-            <button type="submit" style={{ padding: '8px 16px', marginRight: '10px' }}>Yes, Change Password</button>
+            <button type="submit" style={{ marginRight: '10px' }}>Yes, Change Password</button>
           </form>
 
-          <button onClick={handleSkipPasswordChange} style={{ padding: '8px 16px' }}>No, Skip for Now</button>
+          <button onClick={handleSkipPasswordChange}>No, Skip for Now</button>
         </div>
       )}
     </div>
