@@ -137,8 +137,9 @@ export default function ResourcePersonDashboard() {
     <div style={{ maxWidth: '700px', margin: '40px auto', fontFamily: 'sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2>Resource Person Dashboard</h2>
-        <button onClick={handleLogout} style={{ padding: '8px 16px' }}>Log Out</button>
+        <button onClick={handleLogout}>Log Out</button>
       </div>
+      <span className="page-subtitle">Manage your courses, sessions, attendance, and module marks</span>
 
       {message && <p style={{ color: 'green' }}>{message}</p>}
       {error && <p style={{ color: 'red' }}>{error}</p>}

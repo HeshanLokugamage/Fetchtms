@@ -331,3 +331,18 @@ button[type="submit"]:hover, .btn-primary:hover {
   font-weight: 400;
   color: #777;
 }
+
+/* Utility for grouping several action buttons together, wrapping cleanly on narrow screens */
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.page-subtitle {
+  color: #777;
+  font-size: 13px;
+  margin-top: -4px;
+  margin-bottom: 18px;
+  display: block;
+}

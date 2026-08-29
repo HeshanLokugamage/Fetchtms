@@ -87,8 +87,9 @@ export default function CoordinatorDashboard() {
     <div style={{ maxWidth: '700px', margin: '40px auto', fontFamily: 'sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2>Coordinator Dashboard</h2>
-        <button onClick={handleLogout} style={{ padding: '8px 16px' }}>Log Out</button>
+        <button onClick={handleLogout}>Log Out</button>
       </div>
+      <span className="page-subtitle">Review and publish marks, and manage attendance for your assigned course</span>
 
       {message && <p style={{ color: 'green' }}>{message}</p>}
       {error && <p style={{ color: 'red' }}>{error}</p>}

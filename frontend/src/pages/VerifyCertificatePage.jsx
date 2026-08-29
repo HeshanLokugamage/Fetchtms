@@ -44,11 +44,11 @@ export default function VerifyCertificatePage() {
         <button onClick={() => navigate('/login')} style={{ padding: '8px 16px' }}>Go to Login</button>
       </div>
 
-      <div style={{ marginBottom: '20px' }}>
-        <button onClick={() => { setMode('code'); setError(''); setResult(null); setCertList(null); }} style={{ padding: '8px 16px', marginRight: '10px', fontWeight: mode === 'code' ? 'bold' : 'normal' }}>
+      <div className="btn-row" style={{ marginBottom: '20px' }}>
+        <button onClick={() => { setMode('code'); setError(''); setResult(null); setCertList(null); }} style={{ fontWeight: mode === 'code' ? 'bold' : 'normal' }}>
           Search by Certificate Number
         </button>
-        <button onClick={() => { setMode('student'); setError(''); setResult(null); setCertList(null); }} style={{ padding: '8px 16px', fontWeight: mode === 'student' ? 'bold' : 'normal' }}>
+        <button onClick={() => { setMode('student'); setError(''); setResult(null); setCertList(null); }} style={{ fontWeight: mode === 'student' ? 'bold' : 'normal' }}>
           Search by Student
         </button>
       </div>

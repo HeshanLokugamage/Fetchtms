@@ -66,8 +66,9 @@ export default function StudentDashboard() {
     <div style={{ maxWidth: '900px', margin: '40px auto', fontFamily: 'sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2>Student Dashboard</h2>
-        <button onClick={handleLogout} style={{ padding: '8px 16px' }}>Log Out</button>
+        <button onClick={handleLogout}>Log Out</button>
       </div>
+      <span className="page-subtitle">Your registrations, attendance, marks, and payment status</span>
 
       {error && <p style={{ color: 'red' }}>{error}</p>}
 

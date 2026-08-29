@@ -56,11 +56,11 @@ export default function StudentsPage() {
     <div style={{ maxWidth: '900px', margin: '40px auto', fontFamily: 'sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2>Students</h2>
-        <div>
-          <button onClick={() => navigate('/admin/students/list')} style={{ padding: '8px 16px', marginRight: '10px' }}>View Students List</button>
-          <button onClick={() => navigate('/admin/students/search')} style={{ padding: '8px 16px', marginRight: '10px' }}>Search Student</button>
-          <button onClick={() => navigate('/admin/students/import')} style={{ padding: '8px 16px', marginRight: '10px' }}>Import from Excel</button>
-          <button onClick={() => navigate('/admin')} style={{ padding: '8px 16px' }}>← Back to Dashboard</button>
+        <div className="btn-row">
+          <button onClick={() => navigate('/admin/students/list')}>View Students List</button>
+          <button onClick={() => navigate('/admin/students/search')}>Search Student</button>
+          <button onClick={() => navigate('/admin/students/import')}>Import from Excel</button>
+          <button onClick={() => navigate('/admin')}>← Back to Dashboard</button>
         </div>
       </div>
 

@@ -109,11 +109,11 @@ export default function ImportStudentsPage() {
       {message && <p style={{ color: 'green' }}>{message}</p>}
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
-      <div style={{ marginBottom: '20px' }}>
-        <button onClick={downloadTemplate} style={{ padding: '8px 16px', marginRight: '10px' }}>
+      <div className="btn-row" style={{ marginBottom: '20px', alignItems: 'center' }}>
+        <button onClick={downloadTemplate}>
           Download Template
         </button>
-        <button onClick={downloadExistingStudents} style={{ padding: '8px 16px', marginRight: '10px' }}>
+        <button onClick={downloadExistingStudents}>
           Export Existing Students
         </button>
         <input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} />
