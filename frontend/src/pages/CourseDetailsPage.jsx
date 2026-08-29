@@ -93,6 +93,20 @@ export default function CourseDetailsPage() {
     }
   };
 
+  const downloadInvoice = async (registrationId) => {
+    setError('');
+    try {
+      const res = await axios.get(`https://fetchtms.onrender.com/registrations/${registrationId}/invoice/pdf`, {
+        headers: getHeaders(),
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      window.open(url, '_blank');
+    } catch (err) {
+      setError('Failed to download invoice');
+    }
+  };
+
   if (!details || !form) {
     return (
       <div style={{ maxWidth: '900px', margin: '40px auto', fontFamily: 'sans-serif' }}>
@@ -213,13 +227,9 @@ export default function CourseDetailsPage() {
               <td>{s.registration.status}</td>
               <td>
                 <div className="btn-row">
-                  <a
-                    href={`https://fetchtms.onrender.com/registrations/${s.registration.registration_id}/invoice/pdf`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
+                  <button onClick={() => downloadInvoice(s.registration.registration_id)}>
                     Invoice
-                  </a>
+                  </button>
                   {s.paid > 0 ? (
                     <span style={{ color: 'gray', fontSize: '12px' }}>Payments made — cannot cancel</span>
                   ) : (

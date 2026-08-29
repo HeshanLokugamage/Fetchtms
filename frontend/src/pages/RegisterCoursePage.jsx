@@ -45,6 +45,20 @@ export default function RegisterCoursePage() {
     }
   };
 
+  const downloadInvoice = async (registrationId) => {
+    setError('');
+    try {
+      const res = await axios.get(`https://fetchtms.onrender.com/registrations/${registrationId}/invoice/pdf`, {
+        headers: getHeaders(),
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      window.open(url, '_blank');
+    } catch (err) {
+      setError('Failed to download invoice');
+    }
+  };
+
   return (
     <div style={{ maxWidth: '500px', margin: '40px auto', fontFamily: 'sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -55,14 +69,9 @@ export default function RegisterCoursePage() {
       {message && <p style={{ color: 'green' }}>{message}</p>}
       {issuedRegistrationId && (
         <p>
-          <a
-            href={`https://fetchtms.onrender.com/registrations/${issuedRegistrationId}/invoice/pdf`}
-            target="_blank"
-            rel="noreferrer"
-            style={{ padding: '8px 16px', display: 'inline-block', background: '#2e7d32', color: 'white', borderRadius: '4px', textDecoration: 'none' }}
-          >
+          <button onClick={() => downloadInvoice(issuedRegistrationId)}>
             Download Invoice
-          </a>
+          </button>
         </p>
       )}
       {error && <p style={{ color: 'red' }}>{error}</p>}

@@ -62,6 +62,20 @@ export default function ReceiptJournalPage() {
     }
   };
 
+  const downloadReceipt = async (entryId) => {
+    setError('');
+    try {
+      const res = await axios.get(`https://fetchtms.onrender.com/journal/receipt/${entryId}/pdf`, {
+        headers: getHeaders(),
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      window.open(url, '_blank');
+    } catch (err) {
+      setError('Failed to open receipt');
+    }
+  };
+
   return (
     <div style={{ maxWidth: '500px', margin: '40px auto', fontFamily: 'sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -72,14 +86,9 @@ export default function ReceiptJournalPage() {
       {message && <p style={{ color: 'green' }}>{message}</p>}
       {issuedEntryId && (
         <p>
-          <a
-            href={`https://fetchtms.onrender.com/journal/receipt/${issuedEntryId}/pdf`}
-            target="_blank"
-            rel="noreferrer"
-            style={{ padding: '8px 16px', display: 'inline-block', background: '#2e7d32', color: 'white', borderRadius: '4px', textDecoration: 'none' }}
-          >
+          <button onClick={() => downloadReceipt(issuedEntryId)}>
             View / Print Receipt
-          </a>
+          </button>
         </p>
       )}
       {error && <p style={{ color: 'red' }}>{error}</p>}
