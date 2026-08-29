@@ -37,6 +37,27 @@ export default function StudentDashboard() {
     navigate('/login');
   };
 
+  const downloadTranscript = async (studentId, courseId) => {
+    setError('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`https://fetchtms.onrender.com/transcript/${studentId}/${courseId}/pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `transcript-${courseId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError('Failed to download transcript');
+    }
+  };
+
   const totalDebit = payments.filter(p => p.type === 'debit').reduce((sum, p) => sum + Number(p.amount), 0);
   const totalCredit = payments.filter(p => p.type === 'credit').reduce((sum, p) => sum + Number(p.amount), 0);
   const outstanding = Math.max(totalDebit - totalCredit, 0);
@@ -54,7 +75,7 @@ export default function StudentDashboard() {
       <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '30px' }}>
         <thead>
           <tr>
-            <th>Course</th><th>Status</th><th>Fee</th><th>Paid</th><th>Balance Due</th>
+            <th>Course</th><th>Status</th><th>Fee</th><th>Paid</th><th>Balance Due</th><th>Transcript</th>
           </tr>
         </thead>
         <tbody>
@@ -65,6 +86,11 @@ export default function StudentDashboard() {
               <td>{r.fee}</td>
               <td>{r.paid}</td>
               <td>{r.balance}</td>
+              <td>
+                <button onClick={() => downloadTranscript(r.student_id, r.course_id)} style={{ padding: '4px 10px' }}>
+                  Download
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>

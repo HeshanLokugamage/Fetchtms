@@ -15,6 +15,7 @@ import CourseDetailsPage from './pages/CourseDetailsPage.jsx'
 import OperationsHome from './pages/OperationsHome.jsx'
 import PaymentPage from './pages/PaymentPage.jsx'
 import CertificatePage from './pages/CertificatePage.jsx'
+import TranscriptPage from './pages/TranscriptPage.jsx'
 import AssignResourcePersonPage from './pages/AssignResourcePersonPage.jsx'
 import RegisterCoursePage from './pages/RegisterCoursePage.jsx'
 import CreateResourcePersonPage from './pages/CreateResourcePersonPage.jsx'
@@ -84,6 +85,10 @@ createRoot(document.getElementById('root')).render(
         <Route
           path="/admin/operations/certificate"
           element={<ProtectedRoute role="admin"><CertificatePage /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/operations/transcript"
+          element={<ProtectedRoute role="admin"><TranscriptPage /></ProtectedRoute>}
         />
         <Route
           path="/admin/operations/assign-resource-person"

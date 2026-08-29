@@ -27,6 +27,7 @@ export default function OperationsHome() {
 
       <button style={linkStyle} onClick={() => navigate('/admin/operations/payment')}>💰 Record Payment</button>
       <button style={linkStyle} onClick={() => navigate('/admin/operations/certificate')}>🎓 Issue Certificate</button>
+      <button style={linkStyle} onClick={() => navigate('/admin/operations/transcript')}>📄 View / Download Transcript</button>
       <button style={linkStyle} onClick={() => navigate('/admin/operations/assign-resource-person')}>🔗 Assign Resource Person to Course</button>
       <button style={linkStyle} onClick={() => navigate('/admin/operations/register-course')}>📋 Register Student for Course</button>
       <button style={linkStyle} onClick={() => navigate('/admin/operations/create-resource-person')}>👤 Create Resource Person</button>

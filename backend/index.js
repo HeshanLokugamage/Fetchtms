@@ -5,6 +5,7 @@ const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { generateCertificatePdf } = require('./certificate');
+const { generateTranscriptPdf } = require('./transcript');
 
 const app = express();
 app.use(cors());
@@ -1309,6 +1310,75 @@ app.get('/reports/outstanding', authenticate(['admin', 'device']), async (req, r
     totalCredit,
     outstanding: totalDebit - totalCredit
   });
+});
+
+async function buildTranscriptData(studentId, courseId) {
+  const { data: student } = await supabase
+    .from('students').select('full_name').eq('student_id', studentId).single();
+  const { data: course } = await supabase
+    .from('courses').select('name, code').eq('course_id', courseId).single();
+  const { data: modules } = await supabase
+    .from('modules').select('*').eq('course_id', courseId);
+  const { data: assessments } = await supabase
+    .from('assessments').select('*').eq('student_id', studentId).eq('course_id', courseId)
+    .eq('published', true).eq('reviewed', true);
+
+  const moduleRows = (modules || []).map(m => {
+    const a = (assessments || []).find(a => a.module_id === m.module_id);
+    return {
+      module_name: m.module_name,
+      credits: m.credits,
+      eval_type: a?.eval_type || null,
+      marks: a ? Number(a.marks) : null,
+      grade: a?.grade || null
+    };
+  });
+
+  const allGraded = moduleRows.length > 0 && moduleRows.every(r => r.marks !== null);
+  const allPassed = allGraded && moduleRows.every(r => r.marks >= 50);
+  const overallResult = moduleRows.length === 0
+    ? 'No modules defined for this course'
+    : !allGraded ? 'In Progress'
+    : allPassed ? 'Pass' : 'Fail';
+
+  return {
+    studentName: student?.full_name || 'Unknown Student',
+    courseName: course?.name || 'Unknown Course',
+    courseCode: course?.code || null,
+    moduleRows,
+    overallResult
+  };
+}
+
+app.get('/transcript/:studentId/:courseId', authenticate(['admin', 'device', 'student']), async (req, res) => {
+  const { studentId, courseId } = req.params;
+
+  if (req.user.role === 'student') {
+    const ownStudentId = await getStudentIdForUser(req.user.userId);
+    if (String(ownStudentId) !== String(studentId)) {
+      return res.status(403).json({ error: 'Not your record' });
+    }
+  }
+
+  const transcript = await buildTranscriptData(studentId, courseId);
+  res.json(transcript);
+});
+
+app.get('/transcript/:studentId/:courseId/pdf', authenticate(['admin', 'device', 'student']), async (req, res) => {
+  const { studentId, courseId } = req.params;
+
+  if (req.user.role === 'student') {
+    const ownStudentId = await getStudentIdForUser(req.user.userId);
+    if (String(ownStudentId) !== String(studentId)) {
+      return res.status(403).json({ error: 'Not your record' });
+    }
+  }
+
+  const transcript = await buildTranscriptData(studentId, courseId);
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="transcript-${studentId}-${courseId}.pdf"`);
+  generateTranscriptPdf(transcript, res);
 });
 
 app.post('/certificates', authenticate(['admin']), async (req, res) => {
