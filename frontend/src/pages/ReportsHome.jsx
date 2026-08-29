@@ -3,33 +3,30 @@ import { useNavigate } from 'react-router-dom';
 export default function ReportsHome() {
   const navigate = useNavigate();
 
-  const linkStyle = {
-    display: 'block',
-    padding: '16px',
-    marginBottom: '12px',
-    border: '1px solid #ccc',
-    borderRadius: '6px',
-    textDecoration: 'none',
-    color: '#333',
-    fontSize: '18px',
-    cursor: 'pointer',
-    background: 'none',
-    width: '100%',
-    textAlign: 'left'
-  };
+  const items = [
+    { icon: '📈', title: 'Profit & Loss', desc: 'Income and expenses over a period', path: '/admin/reports/profit-loss' },
+    { icon: '⚖️', title: 'Balance Sheet', desc: 'Assets, liabilities, and equity as of a date', path: '/admin/reports/balance-sheet' },
+    { icon: '💰', title: 'Outstanding Report', desc: 'Unpaid balances across all students', path: '/admin/reports/outstanding' },
+    { icon: '🧑‍🎓', title: 'Student Balance Summary', desc: 'Per-student fee, payment, and balance totals', path: '/admin/reports/student-balance-summary' },
+    { icon: '👨‍🏫', title: 'Resource Person Payment Summary', desc: 'Per-trainer payment totals', path: '/admin/reports/resource-person-summary' }
+  ];
 
   return (
-    <div style={{ maxWidth: '500px', margin: '40px auto', fontFamily: 'sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+    <div style={{ maxWidth: '800px', margin: '40px auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
         <h2>Reports</h2>
-        <button onClick={() => navigate('/admin')} style={{ padding: '8px 16px' }}>← Back to Dashboard</button>
+        <button onClick={() => navigate('/admin')}>← Back to Dashboard</button>
       </div>
 
-      <button style={linkStyle} onClick={() => navigate('/admin/reports/profit-loss')}>📈 Profit & Loss</button>
-      <button style={linkStyle} onClick={() => navigate('/admin/reports/balance-sheet')}>⚖️ Balance Sheet</button>
-      <button style={linkStyle} onClick={() => navigate('/admin/reports/outstanding')}>💰 Outstanding Report</button>
-      <button style={linkStyle} onClick={() => navigate('/admin/reports/student-balance-summary')}>🧑‍🎓 Student Balance Summary</button>
-      <button style={linkStyle} onClick={() => navigate('/admin/reports/resource-person-summary')}>👨‍🏫 Resource Person Payment Summary</button>
+      <div className="menu-grid">
+        {items.map(item => (
+          <button key={item.path} className="menu-card" onClick={() => navigate(item.path)}>
+            <span className="menu-icon">{item.icon}</span>
+            <span>{item.title}</span>
+            <span className="menu-desc">{item.desc}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

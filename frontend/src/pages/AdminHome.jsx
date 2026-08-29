@@ -9,36 +9,29 @@ export default function AdminHome() {
     navigate('/login');
   };
 
-  const linkStyle = {
-    display: 'block',
-    padding: '16px',
-    marginBottom: '12px',
-    border: '1px solid #ccc',
-    borderRadius: '6px',
-    textDecoration: 'none',
-    color: '#333',
-    fontSize: '18px'
-  };
+  const items = [
+    { icon: '📋', title: 'Students', desc: 'Register, search, and manage student records', path: '/admin/students' },
+    { icon: '📚', title: 'Courses', desc: 'Create courses, modules, and view details', path: '/admin/courses' },
+    { icon: '⚙️', title: 'Operations', desc: 'Payments, certificates, assignments, and accounts', path: '/admin/operations' },
+    { icon: '📊', title: 'Reports', desc: 'Financial and academic reports', path: '/admin/reports' }
+  ];
 
   return (
-    <div style={{ maxWidth: '500px', margin: '60px auto', fontFamily: 'sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+    <div style={{ maxWidth: '800px', margin: '40px auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
         <h2>Admin Dashboard</h2>
-        <button onClick={handleLogout} style={{ padding: '8px 16px' }}>Log Out</button>
+        <button onClick={handleLogout}>Log Out</button>
       </div>
 
-      <a href="/admin/students" style={linkStyle} onClick={e => { e.preventDefault(); navigate('/admin/students'); }}>
-        📋 Students
-      </a>
-      <a href="/admin/courses" style={linkStyle} onClick={e => { e.preventDefault(); navigate('/admin/courses'); }}>
-        📚 Courses
-      </a>
-      <a href="/admin/operations" style={linkStyle} onClick={e => { e.preventDefault(); navigate('/admin/operations'); }}>
-        ⚙️ Operations (Payments, Certificates, Assignments, Users)
-      </a>
-      <a href="/admin/reports" style={linkStyle} onClick={e => { e.preventDefault(); navigate('/admin/reports'); }}>
-        📊 Reports
-      </a>
+      <div className="menu-grid">
+        {items.map(item => (
+          <button key={item.path} className="menu-card" onClick={() => navigate(item.path)}>
+            <span className="menu-icon">{item.icon}</span>
+            <span>{item.title}</span>
+            <span className="menu-desc">{item.desc}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

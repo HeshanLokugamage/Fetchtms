@@ -3,42 +3,39 @@ import { useNavigate } from 'react-router-dom';
 export default function OperationsHome() {
   const navigate = useNavigate();
 
-  const linkStyle = {
-    display: 'block',
-    padding: '16px',
-    marginBottom: '12px',
-    border: '1px solid #ccc',
-    borderRadius: '6px',
-    textDecoration: 'none',
-    color: '#333',
-    fontSize: '18px',
-    cursor: 'pointer',
-    background: 'none',
-    width: '100%',
-    textAlign: 'left'
-  };
+  const items = [
+    { icon: '💰', title: 'Record Payment', desc: 'Log a student payment against a course', path: '/admin/operations/payment' },
+    { icon: '🎓', title: 'Issue Certificate', desc: 'Generate a certificate of participation', path: '/admin/operations/certificate' },
+    { icon: '📄', title: 'View / Download Transcript', desc: 'Module marks and grades per student', path: '/admin/operations/transcript' },
+    { icon: '🔗', title: 'Assign Resource Person to Course', desc: 'Link a trainer to a course', path: '/admin/operations/assign-resource-person' },
+    { icon: '📋', title: 'Register Student for Course', desc: 'Enroll a student and record the fee owed', path: '/admin/operations/register-course' },
+    { icon: '👤', title: 'Create Resource Person', desc: 'Add a new trainer profile', path: '/admin/operations/create-resource-person' },
+    { icon: '🔑', title: 'Create User Account', desc: 'Create a login for a student, trainer, or staff member', path: '/admin/operations/create-user' },
+    { icon: '🧑‍🏫', title: 'Assign Coordinator to Course', desc: 'Set who reviews marks for a course', path: '/admin/operations/assign-coordinator' },
+    { icon: '🧾', title: 'Receipt Journal', desc: 'Record a student fee receipt', path: '/admin/operations/receipt-journal' },
+    { icon: '💸', title: 'Payment Journal', desc: 'Record company payments and expenses', path: '/admin/operations/payment-journal' },
+    { icon: '🏢', title: 'Manage Vendors', desc: 'Add or view vendors for payments', path: '/admin/operations/manage-vendors' },
+    { icon: '📖', title: 'General Journal Entry', desc: 'Record a manual balanced journal entry', path: '/admin/operations/general-journal' },
+    { icon: '📚', title: 'Journal Entries', desc: 'View or reverse past journal entries', path: '/admin/operations/journal-entries' },
+    { icon: '💳', title: 'Manage Payment Methods', desc: 'Add or view accepted payment methods', path: '/admin/operations/manage-payment-methods' }
+  ];
 
   return (
-    <div style={{ maxWidth: '500px', margin: '40px auto', fontFamily: 'sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+    <div style={{ maxWidth: '900px', margin: '40px auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
         <h2>Operations</h2>
-        <button onClick={() => navigate('/admin')} style={{ padding: '8px 16px' }}>← Back to Dashboard</button>
+        <button onClick={() => navigate('/admin')}>← Back to Dashboard</button>
       </div>
 
-      <button style={linkStyle} onClick={() => navigate('/admin/operations/payment')}>💰 Record Payment</button>
-      <button style={linkStyle} onClick={() => navigate('/admin/operations/certificate')}>🎓 Issue Certificate</button>
-      <button style={linkStyle} onClick={() => navigate('/admin/operations/transcript')}>📄 View / Download Transcript</button>
-      <button style={linkStyle} onClick={() => navigate('/admin/operations/assign-resource-person')}>🔗 Assign Resource Person to Course</button>
-      <button style={linkStyle} onClick={() => navigate('/admin/operations/register-course')}>📋 Register Student for Course</button>
-      <button style={linkStyle} onClick={() => navigate('/admin/operations/create-resource-person')}>👤 Create Resource Person</button>
-      <button style={linkStyle} onClick={() => navigate('/admin/operations/create-user')}>🔑 Create User Account</button>
-      <button style={linkStyle} onClick={() => navigate('/admin/operations/assign-coordinator')}>🧑‍🏫 Assign Coordinator to Course</button>
-      <button style={linkStyle} onClick={() => navigate('/admin/operations/receipt-journal')}>🧾 Receipt Journal</button>
-      <button style={linkStyle} onClick={() => navigate('/admin/operations/payment-journal')}>💸 Payment Journal</button>
-      <button style={linkStyle} onClick={() => navigate('/admin/operations/manage-vendors')}>🏢 Manage Vendors</button>
-      <button style={linkStyle} onClick={() => navigate('/admin/operations/general-journal')}>📖 General Journal Entry</button>
-      <button style={linkStyle} onClick={() => navigate('/admin/operations/journal-entries')}>📚 Journal Entries (View/Reverse)</button>
-      <button style={linkStyle} onClick={() => navigate('/admin/operations/manage-payment-methods')}>💳 Manage Payment Methods</button>
+      <div className="menu-grid">
+        {items.map(item => (
+          <button key={item.path} className="menu-card" onClick={() => navigate(item.path)}>
+            <span className="menu-icon">{item.icon}</span>
+            <span>{item.title}</span>
+            <span className="menu-desc">{item.desc}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
