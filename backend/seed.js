@@ -134,7 +134,7 @@ const vendorsData = [
 const expensePlan = [
   { category: 'resource_person_payment', rpName: 'Dr. Ruwan K Ranasinghe', amount: 15000, entry_date: '2026-09-12', description: 'Trainer payment - TR-CHS101 delivery' },
   { category: 'resource_person_payment', rpName: 'Kasun Perera', amount: 18000, entry_date: '2026-10-05', description: 'Trainer payment - TR-IHS110 delivery' },
-  { category: 'staff_payment', staffUsername: 'staff_admin', amount: 65000, entry_date: '2026-09-01', description: 'Monthly salary - Office Administrator' },
+  { category: 'staff_payment', staffUsername: 'priyantha', amount: 65000, entry_date: '2026-09-01', description: 'Monthly salary - Office Administrator' },
   { category: 'other_expenses', vendorName: null, amount: 8500, entry_date: '2026-09-05', description: 'Electricity bill - August 2026' },
   { category: 'other_expenses', vendorName: null, amount: 4500, entry_date: '2026-09-05', description: 'Internet & communication - August 2026' },
   { category: 'fixed_assets', vendorName: 'ABC Office Supplies', amount: 185000, entry_date: '2026-08-15', description: 'Laptop purchase for training equipment' },
@@ -142,12 +142,15 @@ const expensePlan = [
 ];
 
 // Login accounts created for testing every role end to end.
-// Passwords are temporary — the app forces a change on first login.
+// Username = first name (lowercase), password = FirstName123 — the app forces a
+// password change on first login regardless.
 const loginAccountsPlan = [
-  { username: 'coordinator1', password: 'coord@123', role: 'coordinator', assignCourseCode: 'TR-COM101' },
-  { username: 'trainer_nadeeka', password: 'trainer@123', role: 'resource_person', linkResourcePersonName: 'Nadeeka Silva' },
-  { username: 'staff_admin', password: 'staff@123', role: 'staff' },
-  { username: 'yasodha', password: 'student@123', role: 'student', linkStudentEmail: 'yasodha.p@example.com' }
+  { username: 'sanjeewa', password: 'Sanjeewa123', role: 'coordinator', fullNameForLog: 'Sanjeewa Karunathilaka', assignCourseCodes: ['TR-CHS101', 'TR-PMF201', 'TR-IHS110', 'TR-FAC105'] },
+  { username: 'thilini', password: 'Thilini123', role: 'coordinator', fullNameForLog: 'Thilini Rathnayake', assignCourseCodes: ['TR-ITF100', 'TR-LPM220', 'TR-COM101'] },
+  { username: 'nadeeka', password: 'Nadeeka123', role: 'resource_person', fullNameForLog: 'Nadeeka Silva', linkResourcePersonName: 'Nadeeka Silva' },
+  { username: 'ruwan', password: 'Ruwan123', role: 'resource_person', fullNameForLog: 'Dr. Ruwan K Ranasinghe', linkResourcePersonName: 'Dr. Ruwan K Ranasinghe' },
+  { username: 'priyantha', password: 'Priyantha123', role: 'staff', fullNameForLog: 'Priyantha Wickramasinghe (Office Administrator)' },
+  { username: 'yasodha', password: 'Yasodha123', role: 'student', fullNameForLog: 'Yasodha Perumal', linkStudentEmail: 'yasodha.p@example.com' }
 ];
 
 function computeGrade(marks) {
@@ -386,11 +389,14 @@ async function seed() {
     }
     createdUsersByUsername[acc.username] = user;
 
-    if (acc.role === 'coordinator' && acc.assignCourseCode) {
-      const course = courseByCode(acc.assignCourseCode);
-      const { data: existingCoord } = await supabase.from('course_coordinators').select('*').eq('course_id', course.course_id).eq('coordinator_id', user.user_id);
-      if (!existingCoord || existingCoord.length === 0) {
-        await supabase.from('course_coordinators').insert([{ course_id: course.course_id, coordinator_id: user.user_id }]);
+    if (acc.role === 'coordinator' && acc.assignCourseCodes) {
+      for (const courseCode of acc.assignCourseCodes) {
+        const course = courseByCode(courseCode);
+        if (!course) continue;
+        const { data: existingCoord } = await supabase.from('course_coordinators').select('*').eq('course_id', course.course_id).eq('coordinator_id', user.user_id);
+        if (!existingCoord || existingCoord.length === 0) {
+          await supabase.from('course_coordinators').insert([{ course_id: course.course_id, coordinator_id: user.user_id }]);
+        }
       }
     }
 
@@ -409,7 +415,7 @@ async function seed() {
     }
   }
   console.log(`  ${usersInserted} new login accounts added.`);
-  loginAccountsPlan.forEach(acc => console.log(`    ${acc.username} / ${acc.password}  (role: ${acc.role})`));
+  loginAccountsPlan.forEach(acc => console.log(`    ${acc.username} / ${acc.password}  (${acc.fullNameForLog}, role: ${acc.role})`));
 
   console.log('Checking/seeding Payment Journal expense entries...');
   const categoryToCode = { fixed_assets: '1500', other_purchases: '5100', resource_person_payment: '5000', staff_payment: '5200', other_expenses: '5300' };
@@ -497,7 +503,8 @@ async function seed() {
 
   console.log('\nSeed complete! Summary:');
   console.log('  Login accounts (temporary passwords, changeable on first login):');
-  loginAccountsPlan.forEach(acc => console.log(`    ${acc.username} / ${acc.password}  (${acc.role})`));
+  loginAccountsPlan.forEach(acc => console.log(`    ${acc.username} / ${acc.password}  (${acc.fullNameForLog}, ${acc.role})`));
+  console.log('  Coordinators cover all 7 courses: Sanjeewa -> TR-CHS101, TR-PMF201, TR-IHS110, TR-FAC105; Thilini -> TR-ITF100, TR-LPM220, TR-COM101.');
   console.log('  Certificate-eligible / already-issued students: Kavindu Wickramasinghe (TR-CHS101), Nimesha Kodithuwakku (TR-CHS101),');
   console.log('  Ravindu Gunasekara (TR-PMF201), Malith Senanayake (TR-IHS110), Yasodha Perumal & Chanaka Wijesuriya (TR-COM101).');
   console.log('  Sanduni Rajapaksha and Tharindu Bandara are graded and passing but still owe a balance — good for testing the payment-gate on certificates.');
