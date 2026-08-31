@@ -2,11 +2,18 @@
 // Run with: node seed.js   (from inside the backend folder, after `npm install`)
 // Uses the same SUPABASE_URL / SUPABASE_SERVICE_KEY from your .env file.
 //
-// This version is SAFE TO RE-RUN: it checks whether each resource person,
-// course, student, and registration already exists before inserting, and
-// skips anything that's already there instead of failing or duplicating it.
+// This version is SAFE TO RE-RUN: it checks whether each record already
+// exists before inserting, and skips anything that's already there.
+//
+// Covers the WHOLE system end to end: resource persons, courses, modules,
+// students, registrations, payments (course balances), formal double-entry
+// books (invoice + receipt journal entries so Profit & Loss / Balance Sheet
+// have real data), vendors, Payment Journal expense entries, assessments
+// (marks), certificates for students who qualify, and a few login accounts
+// so you can test every role.
 
 require('dotenv').config();
+const bcrypt = require('bcryptjs');
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
@@ -87,19 +94,60 @@ const registrationPlan = [
   { student: 'Chanaka Wijesuriya', course: 'TR-COM101', paid: 12000 }
 ];
 
-// Assessments for the demo course — all published + reviewed + passing, so it is certificate-eligible
+// Assessments (marks) — covers several courses, not just the demo one, so "who passed"
+// can be checked from Course Details across the system. Deliberately includes a mix:
+// fully paid + passed (certificate-eligible), passed but NOT fully paid (blocked by balance),
+// and not yet graded (In Progress), so every state in the system is demonstrated.
 const assessmentPlan = [
+  // TR-CHS101 — Kavindu and Nimesha both fully paid + passing => certificate-eligible
+  { student: 'Kavindu Wickramasinghe', course: 'TR-CHS101', module: 'Chemical Hazard Identification', eval_type: 'assignment', marks: 72 },
+  { student: 'Kavindu Wickramasinghe', course: 'TR-CHS101', module: 'Risk Mitigation Techniques', eval_type: 'exam', marks: 65 },
+  { student: 'Nimesha Kodithuwakku', course: 'TR-CHS101', module: 'Chemical Hazard Identification', eval_type: 'assignment', marks: 58 },
+  { student: 'Nimesha Kodithuwakku', course: 'TR-CHS101', module: 'Risk Mitigation Techniques', eval_type: 'exam', marks: 61 },
+  // TR-PMF201 — Ravindu fully paid + passing => certificate-eligible; Sanduni graded but only partly paid => blocked by balance
+  { student: 'Ravindu Gunasekara', course: 'TR-PMF201', module: 'Project Planning & Scheduling', eval_type: 'assignment', marks: 77 },
+  { student: 'Ravindu Gunasekara', course: 'TR-PMF201', module: 'Risk & Stakeholder Management', eval_type: 'exam', marks: 80 },
+  { student: 'Sanduni Rajapaksha', course: 'TR-PMF201', module: 'Project Planning & Scheduling', eval_type: 'assignment', marks: 66 },
+  { student: 'Sanduni Rajapaksha', course: 'TR-PMF201', module: 'Risk & Stakeholder Management', eval_type: 'exam', marks: 70 },
+  // TR-IHS110 — Malith fully paid + passing => certificate-eligible; Tharindu passing but unpaid => blocked by balance
+  { student: 'Malith Senanayake', course: 'TR-IHS110', module: 'Workplace Hazard Assessment', eval_type: 'assignment', marks: 69 },
+  { student: 'Malith Senanayake', course: 'TR-IHS110', module: 'Emergency Response Procedures', eval_type: 'exam', marks: 73 },
+  { student: 'Tharindu Bandara', course: 'TR-IHS110', module: 'Workplace Hazard Assessment', eval_type: 'assignment', marks: 60 },
+  { student: 'Tharindu Bandara', course: 'TR-IHS110', module: 'Emergency Response Procedures', eval_type: 'exam', marks: 64 },
+  // TR-COM101 demo course — both fully paid + passing => certificate-eligible
   { student: 'Yasodha Perumal', course: 'TR-COM101', module: 'Verbal & Written Communication', eval_type: 'assignment', marks: 68 },
   { student: 'Yasodha Perumal', course: 'TR-COM101', module: 'Presentation Skills', eval_type: 'exam', marks: 74 },
   { student: 'Chanaka Wijesuriya', course: 'TR-COM101', module: 'Verbal & Written Communication', eval_type: 'assignment', marks: 55 },
   { student: 'Chanaka Wijesuriya', course: 'TR-COM101', module: 'Presentation Skills', eval_type: 'exam', marks: 81 }
+  // Isuru (TR-FAC105) and Dulani (TR-ITF100) are deliberately left ungraded so those
+  // courses show "In Progress" in Course Details, covering that state too.
 ];
 
-// Formal double-entry Receipt Journal records for the same demo-course payments
-// (separate from the payments table above, which only drives the per-course balance)
-const receiptPlan = [
-  { student: 'Yasodha Perumal', amount: 12000, entry_date: '2026-06-01', description: 'Receipt - Yasodha Perumal - TR-COM101 course fee' },
-  { student: 'Chanaka Wijesuriya', amount: 12000, entry_date: '2026-06-01', description: 'Receipt - Chanaka Wijesuriya - TR-COM101 course fee' }
+const vendorsData = [
+  'Print Hub (Pvt) Ltd',
+  'ABC Office Supplies',
+  'Ceylon Facilities Management'
+];
+
+// Payment Journal (expense) entries — covers every category so Profit & Loss and
+// Balance Sheet reports have real, varied data to show.
+const expensePlan = [
+  { category: 'resource_person_payment', rpName: 'Dr. Ruwan K Ranasinghe', amount: 15000, entry_date: '2026-09-12', description: 'Trainer payment - TR-CHS101 delivery' },
+  { category: 'resource_person_payment', rpName: 'Kasun Perera', amount: 18000, entry_date: '2026-10-05', description: 'Trainer payment - TR-IHS110 delivery' },
+  { category: 'staff_payment', staffUsername: 'staff_admin', amount: 65000, entry_date: '2026-09-01', description: 'Monthly salary - Office Administrator' },
+  { category: 'other_expenses', vendorName: null, amount: 8500, entry_date: '2026-09-05', description: 'Electricity bill - August 2026' },
+  { category: 'other_expenses', vendorName: null, amount: 4500, entry_date: '2026-09-05', description: 'Internet & communication - August 2026' },
+  { category: 'fixed_assets', vendorName: 'ABC Office Supplies', amount: 185000, entry_date: '2026-08-15', description: 'Laptop purchase for training equipment' },
+  { category: 'other_purchases', vendorName: 'Print Hub (Pvt) Ltd', amount: 12500, entry_date: '2026-09-08', description: 'Training materials and printed handouts' }
+];
+
+// Login accounts created for testing every role end to end.
+// Passwords are temporary — the app forces a change on first login.
+const loginAccountsPlan = [
+  { username: 'coordinator1', password: 'coord@123', role: 'coordinator', assignCourseCode: 'TR-COM101' },
+  { username: 'trainer_nadeeka', password: 'trainer@123', role: 'resource_person', linkResourcePersonName: 'Nadeeka Silva' },
+  { username: 'staff_admin', password: 'staff@123', role: 'staff' },
+  { username: 'yasodha', password: 'student@123', role: 'student', linkStudentEmail: 'yasodha.p@example.com' }
 ];
 
 function computeGrade(marks) {
@@ -116,6 +164,16 @@ async function getAccountIdByCode(code) {
 }
 
 async function seed() {
+  console.log('Checking/seeding chart of accounts (Course Fee Income)...');
+  const { data: existingIncomeAccount } = await supabase.from('chart_of_accounts').select('*').eq('code', '4000');
+  if (!existingIncomeAccount || existingIncomeAccount.length === 0) {
+    const { error } = await supabase.from('chart_of_accounts').insert([{ code: '4000', name: 'Course Fee Income', type: 'Income' }]);
+    if (error) throw error;
+    console.log('  Added Course Fee Income (4000).');
+  } else {
+    console.log('  Already existed.');
+  }
+
   console.log('Checking/seeding resource persons...');
   const { data: existingRPs } = await supabase.from('resource_persons').select('*');
   const rpToInsert = resourcePersonsData.filter(rp => !existingRPs.some(e => e.name === rp.name));
@@ -125,7 +183,7 @@ async function seed() {
     if (error) throw error;
     insertedRPs = data;
   }
-  const resourcePersons = [...existingRPs, ...insertedRPs];
+  let resourcePersons = [...existingRPs, ...insertedRPs];
   console.log(`  ${insertedRPs.length} added, ${resourcePersons.length - insertedRPs.length} already existed.`);
 
   console.log('Checking/seeding courses...');
@@ -164,6 +222,7 @@ async function seed() {
     const { error } = await supabase.from('modules').insert(modulesToInsert);
     if (error) throw error;
   }
+  const allModules = [...existingModules, ...modulesToInsert.map((m, i) => m)]; // refetched properly below
   console.log(`  ${modulesToInsert.length} added.`);
 
   console.log('Checking/seeding students...');
@@ -176,58 +235,101 @@ async function seed() {
     if (error) throw error;
     insertedStudents = data;
   }
-  const students = [...existingStudents, ...insertedStudents];
+  let students = [...existingStudents, ...insertedStudents];
   console.log(`  ${insertedStudents.length} added, ${students.length - insertedStudents.length} already existed.`);
 
   const studentByEmail = email => students.find(s => s.email === email);
   const emailByName = {};
   studentsData.forEach(s => { emailByName[s.full_name] = s.email; });
 
-  console.log('Checking/seeding registrations and payments...');
+  const cashAccountId = await getAccountIdByCode('1000');
+  const arAccountId = await getAccountIdByCode('1100');
+  const incomeAccountId = await getAccountIdByCode('4000');
+  const { data: adminUsers } = await supabase.from('users').select('user_id').eq('role', 'admin').limit(1);
+  const adminUserId = adminUsers && adminUsers.length > 0 ? adminUsers[0].user_id : null;
+
+  console.log('Checking/seeding registrations, payments, and the formal invoice/receipt books...');
   const { data: existingRegs } = await supabase.from('registrations').select('*');
+  const { data: existingEntries } = await supabase.from('journal_entries').select('*');
   let regCount = 0;
+  let invoiceCount = 0;
+  let receiptEntryCount = 0;
+
   for (const r of registrationPlan) {
     const student = studentByEmail(emailByName[r.student]);
     const course = courseByCode(r.course);
     if (!student || !course) continue;
 
-    const alreadyRegistered = existingRegs.some(e => e.student_id === student.student_id && e.course_id === course.course_id);
-    if (alreadyRegistered) continue;
-
     const fee = Number(course.fee) || 0;
+    const alreadyRegistered = existingRegs.some(e => e.student_id === student.student_id && e.course_id === course.course_id);
 
-    const { error: regError } = await supabase
-      .from('registrations').insert([{ student_id: student.student_id, course_id: course.course_id, status: 'registered' }]);
-    if (regError) throw regError;
+    if (!alreadyRegistered) {
+      const { error: regError } = await supabase
+        .from('registrations').insert([{ student_id: student.student_id, course_id: course.course_id, status: 'registered' }]);
+      if (regError) throw regError;
 
-    await supabase.from('students').update({ registration_status: 'active' }).eq('student_id', student.student_id);
+      await supabase.from('students').update({ registration_status: 'active' }).eq('student_id', student.student_id);
 
-    if (fee > 0) {
-      const { error: debitError } = await supabase.from('payments').insert([{
-        student_id: student.student_id, course_id: course.course_id, amount: fee, type: 'debit', status: 'completed'
-      }]);
-      if (debitError) throw debitError;
+      if (fee > 0) {
+        const { error: debitError } = await supabase.from('payments').insert([{
+          student_id: student.student_id, course_id: course.course_id, amount: fee, type: 'debit', status: 'completed'
+        }]);
+        if (debitError) throw debitError;
+      }
+
+      if (r.paid > 0) {
+        const { error: creditError } = await supabase.from('payments').insert([{
+          student_id: student.student_id, course_id: course.course_id, amount: r.paid, type: 'credit', status: 'completed'
+        }]);
+        if (creditError) throw creditError;
+      }
+
+      regCount++;
     }
 
-    if (r.paid > 0) {
-      const { error: creditError } = await supabase.from('payments').insert([{
-        student_id: student.student_id, course_id: course.course_id, amount: r.paid, type: 'credit', status: 'completed'
-      }]);
-      if (creditError) throw creditError;
+    // Formal invoice entry (Dr AR-Students / Cr Course Fee Income) — mirrors what the live
+    // app now does automatically on every real registration.
+    const invoiceDescription = `Course fee invoiced - student #${student.student_id}, course #${course.course_id}`;
+    const invoiceExists = existingEntries.some(e => e.description === invoiceDescription);
+    if (!invoiceExists && fee > 0 && arAccountId && incomeAccountId && adminUserId) {
+      const { data: invoiceEntry, error: invoiceError } = await supabase
+        .from('journal_entries')
+        .insert([{ entry_date: course.start_date, description: invoiceDescription, entry_type: 'invoice', created_by: adminUserId, reversed: false }])
+        .select().single();
+      if (invoiceError) throw invoiceError;
+      await supabase.from('journal_lines').insert([
+        { entry_id: invoiceEntry.entry_id, account_id: arAccountId, debit_amount: fee, credit_amount: 0, student_id: student.student_id },
+        { entry_id: invoiceEntry.entry_id, account_id: incomeAccountId, debit_amount: 0, credit_amount: fee, student_id: student.student_id }
+      ]);
+      invoiceCount++;
     }
 
-    regCount++;
+    // Formal receipt entry (Dr Cash / Cr AR-Students) for the amount actually paid
+    const receiptDescription = `Receipt - ${student.full_name} - ${course.code} course fee`;
+    const receiptExists = existingEntries.some(e => e.description === receiptDescription);
+    if (!receiptExists && r.paid > 0 && cashAccountId && arAccountId && adminUserId) {
+      const { data: receiptEntry, error: receiptError } = await supabase
+        .from('journal_entries')
+        .insert([{ entry_date: course.start_date, description: receiptDescription, entry_type: 'receipt', created_by: adminUserId, reversed: false }])
+        .select().single();
+      if (receiptError) throw receiptError;
+      await supabase.from('journal_lines').insert([
+        { entry_id: receiptEntry.entry_id, account_id: cashAccountId, debit_amount: r.paid, credit_amount: 0, student_id: student.student_id },
+        { entry_id: receiptEntry.entry_id, account_id: arAccountId, debit_amount: 0, credit_amount: r.paid, student_id: student.student_id }
+      ]);
+      receiptEntryCount++;
+    }
   }
-  console.log(`  ${regCount} new registrations added.`);
+  console.log(`  ${regCount} new registrations, ${invoiceCount} new invoice entries, ${receiptEntryCount} new receipt entries added.`);
 
   console.log('Checking/seeding assessments (assignment/exam marks)...');
   const { data: existingAssessments } = await supabase.from('assessments').select('*');
-  const { data: allModules } = await supabase.from('modules').select('*');
+  const { data: modulesFresh } = await supabase.from('modules').select('*');
   let assessCount = 0;
   for (const a of assessmentPlan) {
     const student = studentByEmail(emailByName[a.student]);
     const course = courseByCode(a.course);
-    const moduleRow = allModules.find(m => m.course_id === course.course_id && m.module_name === a.module);
+    const moduleRow = modulesFresh.find(m => m.course_id === course.course_id && m.module_name === a.module);
     if (!student || !course || !moduleRow) continue;
 
     const already = existingAssessments.some(e =>
@@ -236,7 +338,8 @@ async function seed() {
     );
     if (already) continue;
 
-    const rp = rpByName('Nadeeka Silva');
+    const assignment = courseResourcePersonAssignments.find(x => x.courseCode === a.course);
+    const rp = assignment ? rpByName(assignment.rpName) : null;
     const { error: assessError } = await supabase.from('assessments').insert([{
       student_id: student.student_id,
       course_id: course.course_id,
@@ -253,42 +356,152 @@ async function seed() {
   }
   console.log(`  ${assessCount} new assessments added.`);
 
-  console.log('Checking/seeding Receipt Journal entries...');
-  const cashAccountId = await getAccountIdByCode('1000');
-  const arAccountId = await getAccountIdByCode('1100');
-  const { data: adminUsers } = await supabase.from('users').select('user_id').eq('role', 'admin').limit(1);
-  const adminUserId = adminUsers && adminUsers.length > 0 ? adminUsers[0].user_id : null;
-  const { data: existingEntries } = await supabase.from('journal_entries').select('*').eq('entry_type', 'receipt');
-  let receiptCount = 0;
-  if (cashAccountId && arAccountId && adminUserId) {
-    for (const r of receiptPlan) {
-      const student = studentByEmail(emailByName[r.student]);
-      if (!student) continue;
-
-      const already = existingEntries.some(e => e.description === r.description);
-      if (already) continue;
-
-      const { data: entry, error: entryError } = await supabase
-        .from('journal_entries')
-        .insert([{ entry_date: r.entry_date, description: r.description, entry_type: 'receipt', created_by: adminUserId, reversed: false }])
-        .select().single();
-      if (entryError) throw entryError;
-
-      const { error: linesError } = await supabase.from('journal_lines').insert([
-        { entry_id: entry.entry_id, account_id: cashAccountId, debit_amount: r.amount, credit_amount: 0, student_id: student.student_id },
-        { entry_id: entry.entry_id, account_id: arAccountId, debit_amount: 0, credit_amount: r.amount, student_id: student.student_id }
-      ]);
-      if (linesError) throw linesError;
-      receiptCount++;
-    }
-  } else {
-    console.log('  Skipped: chart_of_accounts codes 1000/1100 or an admin user account were not found.');
+  console.log('Checking/seeding vendors...');
+  const { data: existingVendors } = await supabase.from('vendors').select('*');
+  const vendorsToInsert = vendorsData.filter(name => !existingVendors.some(v => v.name === name));
+  let insertedVendors = [];
+  if (vendorsToInsert.length > 0) {
+    const { data, error } = await supabase.from('vendors').insert(vendorsToInsert.map(name => ({ name }))).select();
+    if (error) throw error;
+    insertedVendors = data;
   }
-  console.log(`  ${receiptCount} new receipt journal entries added.`);
+  const vendors = [...existingVendors, ...insertedVendors];
+  console.log(`  ${insertedVendors.length} added, ${vendors.length - insertedVendors.length} already existed.`);
 
-  console.log('\nSeed complete!');
-  console.log('\nCertificate-ready demo students: Yasodha Perumal and Chanaka Wijesuriya, course TR-COM101 (Effective Workplace Communication).');
-  console.log('Both have full marks published/reviewed and the fee fully paid, so Issue Certificate should succeed for either of them.');
+  console.log('Checking/seeding login accounts...');
+  const { data: existingUsers } = await supabase.from('users').select('*');
+  let usersInserted = 0;
+  const createdUsersByUsername = {};
+  for (const acc of loginAccountsPlan) {
+    let user = existingUsers.find(u => u.username === acc.username);
+    if (!user) {
+      const password_hash = await bcrypt.hash(acc.password, 10);
+      const { data: newUser, error } = await supabase
+        .from('users')
+        .insert([{ username: acc.username, password_hash, role: acc.role, force_password_reset: true, is_active: true }])
+        .select().single();
+      if (error) throw error;
+      user = newUser;
+      usersInserted++;
+    }
+    createdUsersByUsername[acc.username] = user;
+
+    if (acc.role === 'coordinator' && acc.assignCourseCode) {
+      const course = courseByCode(acc.assignCourseCode);
+      const { data: existingCoord } = await supabase.from('course_coordinators').select('*').eq('course_id', course.course_id).eq('coordinator_id', user.user_id);
+      if (!existingCoord || existingCoord.length === 0) {
+        await supabase.from('course_coordinators').insert([{ course_id: course.course_id, coordinator_id: user.user_id }]);
+      }
+    }
+
+    if (acc.role === 'resource_person' && acc.linkResourcePersonName) {
+      const rp = rpByName(acc.linkResourcePersonName);
+      if (rp && !rp.user_id) {
+        await supabase.from('resource_persons').update({ user_id: user.user_id }).eq('trainer_id', rp.trainer_id);
+      }
+    }
+
+    if (acc.role === 'student' && acc.linkStudentEmail) {
+      const student = studentByEmail(acc.linkStudentEmail);
+      if (student && !student.user_id) {
+        await supabase.from('students').update({ user_id: user.user_id }).eq('student_id', student.student_id);
+      }
+    }
+  }
+  console.log(`  ${usersInserted} new login accounts added.`);
+  loginAccountsPlan.forEach(acc => console.log(`    ${acc.username} / ${acc.password}  (role: ${acc.role})`));
+
+  console.log('Checking/seeding Payment Journal expense entries...');
+  const categoryToCode = { fixed_assets: '1500', other_purchases: '5100', resource_person_payment: '5000', staff_payment: '5200', other_expenses: '5300' };
+  const { data: freshEntries } = await supabase.from('journal_entries').select('*');
+  let expenseCount = 0;
+  for (const e of expensePlan) {
+    const already = freshEntries.some(fe => fe.description === e.description);
+    if (already) continue;
+
+    const debitAccountId = await getAccountIdByCode(categoryToCode[e.category]);
+    if (!debitAccountId || !cashAccountId || !adminUserId) continue;
+
+    const { data: entry, error: entryError } = await supabase
+      .from('journal_entries')
+      .insert([{ entry_date: e.entry_date, description: e.description, entry_type: 'payment', created_by: adminUserId, reversed: false }])
+      .select().single();
+    if (entryError) throw entryError;
+
+    const lineExtras = {};
+    if (e.category === 'resource_person_payment') {
+      const rp = rpByName(e.rpName);
+      lineExtras.resource_person_id = rp ? rp.trainer_id : null;
+    } else if (e.category === 'staff_payment') {
+      const staffUser = createdUsersByUsername[e.staffUsername] || existingUsers.find(u => u.username === e.staffUsername);
+      lineExtras.staff_user_id = staffUser ? staffUser.user_id : null;
+    } else if (e.vendorName) {
+      const vendor = vendors.find(v => v.name === e.vendorName);
+      lineExtras.vendor_id = vendor ? vendor.vendor_id : null;
+    }
+
+    const { error: linesError } = await supabase.from('journal_lines').insert([
+      { entry_id: entry.entry_id, account_id: debitAccountId, debit_amount: e.amount, credit_amount: 0, ...lineExtras },
+      { entry_id: entry.entry_id, account_id: cashAccountId, debit_amount: 0, credit_amount: e.amount, ...lineExtras }
+    ]);
+    if (linesError) throw linesError;
+    expenseCount++;
+  }
+  console.log(`  ${expenseCount} new expense entries added.`);
+
+  console.log('Checking/issuing certificates for students who now qualify...');
+  const { data: freshPayments } = await supabase.from('payments').select('*');
+  const { data: freshAssessments } = await supabase.from('assessments').select('*');
+  const { data: existingCerts } = await supabase.from('certificates').select('*');
+  let certCount = 0;
+
+  for (const r of registrationPlan) {
+    const student = studentByEmail(emailByName[r.student]);
+    const course = courseByCode(r.course);
+    if (!student || !course) continue;
+
+    const alreadyIssued = existingCerts.some(c => c.student_id === student.student_id && c.course_id === course.course_id);
+    if (alreadyIssued) continue;
+
+    const coursePayments = freshPayments.filter(p => p.student_id === student.student_id && p.course_id === course.course_id);
+    const debit = coursePayments.filter(p => p.type === 'debit').reduce((sum, p) => sum + Number(p.amount), 0);
+    const credit = coursePayments.filter(p => p.type === 'credit').reduce((sum, p) => sum + Number(p.amount), 0);
+    if (debit - credit > 0) continue; // still owes money
+
+    const courseModules = modulesFresh.filter(m => m.course_id === course.course_id);
+    if (courseModules.length === 0) continue; // nothing to grade, be conservative and skip
+
+    const studentAssessments = freshAssessments.filter(a => a.student_id === student.student_id && a.course_id === course.course_id && a.published && a.reviewed);
+    const allPassed = courseModules.every(m => {
+      const a = studentAssessments.find(a => a.module_id === m.module_id);
+      return a && Number(a.marks) >= 50;
+    });
+    if (!allPassed) continue;
+
+    const today = new Date();
+    const datePart = today.toISOString().split('T')[0].replace(/-/g, '');
+    const { data: todaysCerts } = await supabase.from('certificates').select('verification_code').like('verification_code', `FCPL${datePart}%`);
+    const seq = String((todaysCerts ? todaysCerts.length : 0) + 1).padStart(2, '0');
+    const verificationCode = `FCPL${datePart}${seq}`;
+
+    const { error: certError } = await supabase.from('certificates').insert([{
+      student_id: student.student_id, course_id: course.course_id,
+      issue_date: today.toISOString().split('T')[0], verification_code: verificationCode
+    }]);
+    if (certError) throw certError;
+    existingCerts.push({ student_id: student.student_id, course_id: course.course_id, verification_code: verificationCode });
+    certCount++;
+    console.log(`    Issued ${verificationCode} to ${student.full_name} for ${course.code}`);
+  }
+  console.log(`  ${certCount} new certificates issued.`);
+
+  console.log('\nSeed complete! Summary:');
+  console.log('  Login accounts (temporary passwords, changeable on first login):');
+  loginAccountsPlan.forEach(acc => console.log(`    ${acc.username} / ${acc.password}  (${acc.role})`));
+  console.log('  Certificate-eligible / already-issued students: Kavindu Wickramasinghe (TR-CHS101), Nimesha Kodithuwakku (TR-CHS101),');
+  console.log('  Ravindu Gunasekara (TR-PMF201), Malith Senanayake (TR-IHS110), Yasodha Perumal & Chanaka Wijesuriya (TR-COM101).');
+  console.log('  Sanduni Rajapaksha and Tharindu Bandara are graded and passing but still owe a balance — good for testing the payment-gate on certificates.');
+  console.log('  Isuru Madushanka and Dulani Weerasinghe are registered but not yet graded — good for testing "In Progress" status.');
 }
 
 seed().catch(err => {

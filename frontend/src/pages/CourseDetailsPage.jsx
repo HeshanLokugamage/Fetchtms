@@ -216,7 +216,7 @@ export default function CourseDetailsPage() {
 
       <h3>Registered Students ({students.length})</h3>
       <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%' }}>
-        <thead><tr><th>Student</th><th>Fee</th><th>Paid</th><th>Balance</th><th>Status</th><th>Action</th></tr></thead>
+        <thead><tr><th>Student</th><th>Fee</th><th>Paid</th><th>Balance</th><th>Status</th><th>Marks / Result</th><th>Action</th></tr></thead>
         <tbody>
           {students.map(s => (
             <tr key={s.registration.registration_id}>
@@ -225,6 +225,24 @@ export default function CourseDetailsPage() {
               <td>{s.paid}</td>
               <td>{s.balance}</td>
               <td>{s.registration.status}</td>
+              <td>
+                {s.moduleMarks && s.moduleMarks.length > 0 ? (
+                  <>
+                    {s.moduleMarks.map((mm, i) => (
+                      <div key={i} style={{ fontSize: '12px' }}>
+                        {mm.module_name}: {mm.marks !== null ? `${mm.marks} (${mm.grade})` : 'Pending'}
+                      </div>
+                    ))}
+                    <strong style={{
+                      color: s.overallResult === 'Pass' ? '#2e7d32' : s.overallResult === 'Fail' ? '#c62828' : '#777'
+                    }}>
+                      {s.overallResult}
+                    </strong>
+                  </>
+                ) : (
+                  <span style={{ color: 'gray', fontSize: '12px' }}>No modules</span>
+                )}
+              </td>
               <td>
                 <div className="btn-row">
                   <button onClick={() => downloadInvoice(s.registration.registration_id)}>
@@ -247,7 +265,7 @@ export default function CourseDetailsPage() {
               </td>
             </tr>
           ))}
-          {students.length === 0 && <tr><td colSpan="6">No students registered yet.</td></tr>}
+          {students.length === 0 && <tr><td colSpan="7">No students registered yet.</td></tr>}
         </tbody>
       </table>
     </div>

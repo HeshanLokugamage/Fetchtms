@@ -10,15 +10,18 @@ export default function ReceiptJournalPage() {
   const navigate = useNavigate();
 
   const [students, setStudents] = useState([]);
+  const [courses, setCourses] = useState([]);
   const [paymentMethods, setPaymentMethods] = useState([]);
 
   const [entryDate, setEntryDate] = useState(todayISO());
   const [studentId, setStudentId] = useState('');
+  const [courseId, setCourseId] = useState('');
   const [amount, setAmount] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('');
   const [description, setDescription] = useState('');
 
-  const [outstanding, setOutstanding] = useState(null);
+  const [overallOutstanding, setOverallOutstanding] = useState(null);
+  const [courseBalance, setCourseBalance] = useState(null);
   const [issuedEntryId, setIssuedEntryId] = useState('');
 
   const getHeaders = () => {
@@ -31,32 +34,51 @@ export default function ReceiptJournalPage() {
       .then(res => setStudents(res.data))
       .catch(() => {});
 
+    axios.get('https://fetchtms.onrender.com/courses', { headers: getHeaders() })
+      .then(res => setCourses(res.data))
+      .catch(() => {});
+
     axios.get('https://fetchtms.onrender.com/payment-methods', { headers: getHeaders() })
       .then(res => setPaymentMethods(res.data))
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (!studentId) { setOutstanding(null); return; }
+    if (!studentId) { setOverallOutstanding(null); return; }
     axios.get(`https://fetchtms.onrender.com/payments/student/${studentId}`, { headers: getHeaders() })
-      .then(res => setOutstanding(res.data.outstanding))
-      .catch(() => setOutstanding(null));
+      .then(res => setOverallOutstanding(res.data.outstanding))
+      .catch(() => setOverallOutstanding(null));
   }, [studentId]);
+
+  useEffect(() => {
+    if (!studentId || !courseId) { setCourseBalance(null); return; }
+    axios.get(`https://fetchtms.onrender.com/courses/${courseId}/balance/${studentId}`, { headers: getHeaders() })
+      .then(res => setCourseBalance(res.data))
+      .catch(() => setCourseBalance(null));
+  }, [studentId, courseId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage(''); setError(''); setIssuedEntryId('');
+
+    if (courseBalance && Number(amount) > courseBalance.balance) {
+      setError(`Amount cannot exceed this student's outstanding balance of ${courseBalance.balance} for this course`);
+      return;
+    }
+
     try {
       const res = await axios.post('https://fetchtms.onrender.com/journal/receipt', {
         entry_date: entryDate,
         student_id: studentId,
+        course_id: courseId,
         amount,
         payment_method_id: paymentMethodId,
         description
       }, { headers: getHeaders() });
-      setMessage('Receipt recorded successfully');
+      setMessage('Receipt recorded successfully and the student\u2019s course balance has been updated');
       setIssuedEntryId(res.data.entry.entry_id);
-      setStudentId(''); setAmount(''); setPaymentMethodId(''); setDescription(''); setEntryDate(todayISO());
+      setStudentId(''); setCourseId(''); setAmount(''); setPaymentMethodId(''); setDescription(''); setEntryDate(todayISO());
+      setCourseBalance(null); setOverallOutstanding(null);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to record receipt');
     }
@@ -106,15 +128,38 @@ export default function ReceiptJournalPage() {
               <option key={s.student_id} value={s.student_id}>{s.full_name}</option>
             ))}
           </select>
-          {outstanding !== null && (
+          {overallOutstanding !== null && (
             <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>
-              Outstanding balance (all courses): {outstanding}
+              Outstanding balance (all courses): {overallOutstanding}
+            </p>
+          )}
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Course</label><br />
+          <select value={courseId} onChange={e => setCourseId(e.target.value)} style={{ width: '100%', padding: '8px' }} required>
+            <option value="">Select Course</option>
+            {courses.map(c => (
+              <option key={c.course_id} value={c.course_id}>{c.code} — {c.name}</option>
+            ))}
+          </select>
+          {courseBalance && (
+            <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>
+              This course — Fee: {courseBalance.fee}, Paid: {courseBalance.paid}, Balance: {courseBalance.balance}
             </p>
           )}
         </div>
         <div style={{ marginBottom: '10px' }}>
           <label>Amount</label><br />
-          <input type="number" min="0.01" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+          <input
+            type="number"
+            min="0.01"
+            step="0.01"
+            max={courseBalance ? courseBalance.balance : undefined}
+            value={amount}
+            onChange={e => setAmount(e.target.value)}
+            style={{ width: '100%', padding: '8px' }}
+            required
+          />
         </div>
         <div style={{ marginBottom: '10px' }}>
           <label>Payment Method</label><br />

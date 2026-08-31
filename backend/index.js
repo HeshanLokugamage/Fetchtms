@@ -176,7 +176,28 @@ async function getAccountIdByCode(code) {
 }
 
 app.post('/journal/receipt', authenticate(['admin']), async (req, res) => {
-  const { entry_date, student_id, amount, payment_method_id, description } = req.body;
+  const { entry_date, student_id, course_id, amount, payment_method_id, description } = req.body;
+
+  const numAmount = Number(amount);
+  if (!numAmount || numAmount <= 0) {
+    return res.status(400).json({ error: 'Amount must be a positive number' });
+  }
+
+  // A receipt for a student is a payment toward a specific course's fee — keep the payments
+  // table (which drives course balances and certificate eligibility) in sync with the books.
+  if (course_id) {
+    const { data: existingPayments, error: payError } = await supabase
+      .from('payments').select('*').eq('student_id', student_id).eq('course_id', course_id);
+    if (payError) return res.status(500).json({ error: payError.message });
+
+    const debit = existingPayments.filter(p => p.type === 'debit').reduce((sum, p) => sum + Number(p.amount), 0);
+    const credit = existingPayments.filter(p => p.type === 'credit').reduce((sum, p) => sum + Number(p.amount), 0);
+    const remainingBalance = debit - credit;
+
+    if (numAmount > remainingBalance) {
+      return res.status(400).json({ error: `Receipt amount exceeds this student's outstanding balance of ${remainingBalance} for this course` });
+    }
+  }
 
   const cashAccountId = await getAccountIdByCode('1000');
   const arAccountId = await getAccountIdByCode('1100');
@@ -203,13 +224,20 @@ app.post('/journal/receipt', authenticate(['admin']), async (req, res) => {
   const { error: linesError } = await supabase
     .from('journal_lines')
     .insert([
-      { entry_id: entry.entry_id, account_id: cashAccountId, debit_amount: amount, credit_amount: 0, student_id },
-      { entry_id: entry.entry_id, account_id: arAccountId, debit_amount: 0, credit_amount: amount, student_id }
+      { entry_id: entry.entry_id, account_id: cashAccountId, debit_amount: numAmount, credit_amount: 0, student_id },
+      { entry_id: entry.entry_id, account_id: arAccountId, debit_amount: 0, credit_amount: numAmount, student_id }
     ]);
 
   if (linesError) return res.status(500).json({ error: linesError.message });
 
-  res.status(201).json({ message: 'Receipt recorded', entry });
+  if (course_id) {
+    const { error: creditError } = await supabase
+      .from('payments')
+      .insert([{ student_id, course_id, amount: numAmount, type: 'credit', status: 'completed' }]);
+    if (creditError) return res.status(500).json({ error: creditError.message });
+  }
+
+  res.status(201).json({ message: 'Receipt recorded', entry, course_id: course_id || null });
 });
 
 // Printable/downloadable PDF for a specific receipt journal entry
@@ -796,18 +824,36 @@ app.get('/courses/:id/details', authenticate(['admin', 'device']), async (req, r
   const { data: registrations } = await supabase.from('registrations').select('*').eq('course_id', id);
   const { data: allStudents } = await supabase.from('students').select('*');
   const { data: allPayments } = await supabase.from('payments').select('*').eq('course_id', id);
+  const { data: allAssessments } = await supabase.from('assessments').select('*').eq('course_id', id);
 
   const students = (registrations || []).map(r => {
     const student = (allStudents || []).find(s => s.student_id === r.student_id) || null;
     const studentPayments = (allPayments || []).filter(p => p.student_id === r.student_id);
     const debit = studentPayments.filter(p => p.type === 'debit').reduce((sum, p) => sum + Number(p.amount), 0);
     const credit = studentPayments.filter(p => p.type === 'credit').reduce((sum, p) => sum + Number(p.amount), 0);
+
+    const studentAssessments = (allAssessments || []).filter(a => a.student_id === r.student_id);
+    const moduleMarks = (modules || []).map(m => {
+      const a = studentAssessments.find(a => a.module_id === m.module_id && a.published && a.reviewed);
+      return {
+        module_name: m.module_name,
+        eval_type: a ? a.eval_type : null,
+        marks: a ? Number(a.marks) : null,
+        grade: a ? a.grade : null
+      };
+    });
+    const allGraded = moduleMarks.length > 0 && moduleMarks.every(mm => mm.marks !== null);
+    const allPassed = allGraded && moduleMarks.every(mm => mm.marks >= 50);
+    const overallResult = moduleMarks.length === 0 ? 'No Modules' : !allGraded ? 'In Progress' : allPassed ? 'Pass' : 'Fail';
+
     return {
       registration: r,
       student,
       fee: Number(course.fee) || 0,
       paid: credit,
-      balance: Math.max(debit - credit, 0)
+      balance: Math.max(debit - credit, 0),
+      moduleMarks,
+      overallResult
     };
   });
 
@@ -1057,6 +1103,53 @@ app.delete('/registrations/:id', authenticate(['admin', 'device']), async (req, 
   // Safe to cancel — no payments made yet, so clear the auto-generated fee debit along with the registration
   await supabase.from('payments').delete().eq('student_id', reg.student_id).eq('course_id', reg.course_id).eq('type', 'debit');
 
+  // Also reverse the matching revenue-recognition journal entry, if one was created at registration time.
+  // This follows the same offsetting-entry pattern as the general "reverse entry" route, since reports
+  // total up all journal lines regardless of the reversed flag.
+  const { data: studentLines } = await supabase.from('journal_lines').select('entry_id').eq('student_id', reg.student_id);
+  const entryIds = [...new Set((studentLines || []).map(l => l.entry_id))];
+  if (entryIds.length > 0) {
+    const { data: candidateEntries } = await supabase
+      .from('journal_entries').select('*')
+      .in('entry_id', entryIds)
+      .eq('entry_type', 'invoice')
+      .eq('reversed', false)
+      .eq('description', `Course fee invoiced - student #${reg.student_id}, course #${reg.course_id}`);
+
+    if (candidateEntries && candidateEntries.length > 0) {
+      const originalEntry = candidateEntries[0];
+      const { data: originalLines } = await supabase.from('journal_lines').select('*').eq('entry_id', originalEntry.entry_id);
+
+      const { data: reversalEntry, error: reversalError } = await supabase
+        .from('journal_entries')
+        .insert([{
+          entry_date: new Date().toISOString().split('T')[0],
+          description: `Reversal of entry #${originalEntry.entry_id}: ${originalEntry.description}`,
+          entry_type: originalEntry.entry_type,
+          created_by: req.user.userId,
+          reversed: false
+        }])
+        .select().single();
+
+      if (!reversalError && reversalEntry && originalLines) {
+        const reversalLines = originalLines.map(l => ({
+          entry_id: reversalEntry.entry_id,
+          account_id: l.account_id,
+          debit_amount: l.credit_amount,
+          credit_amount: l.debit_amount,
+          student_id: l.student_id,
+          vendor_id: l.vendor_id,
+          resource_person_id: l.resource_person_id
+        }));
+        await supabase.from('journal_lines').insert(reversalLines);
+        await supabase
+          .from('journal_entries')
+          .update({ reversed: true, reversed_by_entry_id: reversalEntry.entry_id })
+          .eq('entry_id', originalEntry.entry_id);
+      }
+    }
+  }
+
   const { error: delError } = await supabase.from('registrations').delete().eq('registration_id', id);
   if (delError) return res.status(500).json({ error: delError.message });
 
@@ -1094,6 +1187,30 @@ app.post('/registrations', authenticate(['admin', 'device']), async (req, res) =
     await supabase
       .from('payments')
       .insert([{ student_id, course_id, amount: fee, type: 'debit', status: 'completed' }]);
+
+    // Recognize the fee as revenue in the formal books (Dr Accounts Receivable, Cr Course Fee Income),
+    // so Profit & Loss and Balance Sheet reports reflect real activity, not just the simple payments ledger.
+    const arAccountId = await getAccountIdByCode('1100');
+    const incomeAccountId = await getAccountIdByCode('4000');
+    if (arAccountId && incomeAccountId) {
+      const { data: entry } = await supabase
+        .from('journal_entries')
+        .insert([{
+          entry_date: new Date().toISOString().split('T')[0],
+          description: `Course fee invoiced - student #${student_id}, course #${course_id}`,
+          entry_type: 'invoice',
+          created_by: req.user.userId,
+          reversed: false
+        }])
+        .select().single();
+
+      if (entry) {
+        await supabase.from('journal_lines').insert([
+          { entry_id: entry.entry_id, account_id: arAccountId, debit_amount: fee, credit_amount: 0, student_id },
+          { entry_id: entry.entry_id, account_id: incomeAccountId, debit_amount: 0, credit_amount: fee, student_id }
+        ]);
+      }
+    }
   }
 
   res.status(201).json({ message: 'Student registered for course', registration: data[0], fee });
