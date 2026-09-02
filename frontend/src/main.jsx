@@ -29,6 +29,7 @@ import GeneralJournalPage from './pages/GeneralJournalPage.jsx'
 import JournalEntriesPage from './pages/JournalEntriesPage.jsx'
 import ManagePaymentMethodsPage from './pages/ManagePaymentMethodsPage.jsx'
 import ReportsHome from './pages/ReportsHome.jsx'
+import CourseWiseReportPage from './pages/CourseWiseReportPage.jsx'
 import ProfitLossPage from './pages/ProfitLossPage.jsx'
 import BalanceSheetPage from './pages/BalanceSheetPage.jsx'
 import OutstandingReportPage from './pages/OutstandingReportPage.jsx'
@@ -143,6 +144,10 @@ createRoot(document.getElementById('root')).render(
         <Route
           path="/admin/reports"
           element={<ProtectedRoute role="admin"><ReportsHome /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/reports/course-wise"
+          element={<ProtectedRoute role="admin"><CourseWiseReportPage /></ProtectedRoute>}
         />
         <Route
           path="/admin/reports/profit-loss"

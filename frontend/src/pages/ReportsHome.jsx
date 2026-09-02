@@ -8,7 +8,8 @@ export default function ReportsHome() {
     { icon: '⚖️', title: 'Balance Sheet', desc: 'Assets, liabilities, and equity as of a date', path: '/admin/reports/balance-sheet' },
     { icon: '💰', title: 'Outstanding Report', desc: 'Unpaid balances across all students', path: '/admin/reports/outstanding' },
     { icon: '🧑‍🎓', title: 'Student Balance Summary', desc: 'Per-student fee, payment, and balance totals', path: '/admin/reports/student-balance-summary' },
-    { icon: '👨‍🏫', title: 'Resource Person Payment Summary', desc: 'Per-trainer payment totals', path: '/admin/reports/resource-person-summary' }
+    { icon: '👨‍🏫', title: 'Resource Person Payment Summary', desc: 'Per-trainer payment totals', path: '/admin/reports/resource-person-summary' },
+    { icon: '📚', title: 'Training Course-wise Report', desc: 'Every student\u2019s marks, fees, and pass/fail status, filterable by course', path: '/admin/reports/course-wise' }
   ];
 
   return (

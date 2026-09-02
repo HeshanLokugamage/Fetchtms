@@ -8,6 +8,7 @@ const { generateCertificatePdf } = require('./certificate');
 const { generateTranscriptPdf } = require('./transcript');
 const { generateInvoicePdf } = require('./invoice');
 const { generateReceiptPdf } = require('./receipt');
+const { generateCourseWiseReportPdf } = require('./courseWiseReport');
 
 const app = express();
 app.use(cors());
@@ -1516,6 +1517,80 @@ app.get('/payments/student/:studentId', authenticate(['admin', 'device']), async
     totalCredit,
     outstanding: totalDebit - totalCredit
   });
+});
+
+async function buildCourseWiseRows() {
+  const { data: courses } = await supabase.from('courses').select('*');
+  const { data: registrations } = await supabase.from('registrations').select('*');
+  const { data: students } = await supabase.from('students').select('*');
+  const { data: payments } = await supabase.from('payments').select('*');
+  const { data: modules } = await supabase.from('modules').select('*');
+  const { data: assessments } = await supabase.from('assessments').select('*');
+
+  return (registrations || []).map(r => {
+    const course = (courses || []).find(c => c.course_id === r.course_id);
+    const student = (students || []).find(s => s.student_id === r.student_id);
+    const studentPayments = (payments || []).filter(p => p.student_id === r.student_id && p.course_id === r.course_id);
+    const debit = studentPayments.filter(p => p.type === 'debit').reduce((sum, p) => sum + Number(p.amount), 0);
+    const credit = studentPayments.filter(p => p.type === 'credit').reduce((sum, p) => sum + Number(p.amount), 0);
+    const fee = Number(course?.fee) || 0;
+
+    const courseModules = (modules || []).filter(m => m.course_id === r.course_id);
+    const studentAssessments = (assessments || []).filter(a =>
+      a.student_id === r.student_id && a.course_id === r.course_id && a.published && a.reviewed
+    );
+    const moduleMarks = courseModules.map(m => {
+      const a = studentAssessments.find(a => a.module_id === m.module_id);
+      return { module_name: m.module_name, marks: a ? Number(a.marks) : null, grade: a ? a.grade : null };
+    });
+    const allGraded = moduleMarks.length > 0 && moduleMarks.every(mm => mm.marks !== null);
+    const allPassed = allGraded && moduleMarks.every(mm => mm.marks >= 50);
+    const overallResult = moduleMarks.length === 0 ? 'No Modules' : !allGraded ? 'In Progress' : allPassed ? 'Pass' : 'Fail';
+
+    return {
+      registration_id: r.registration_id,
+      course_id: r.course_id,
+      course_code: course?.code || null,
+      course_name: course?.name || null,
+      student_id: r.student_id,
+      student_name: student?.full_name || null,
+      fee,
+      paid: credit,
+      balance: Math.max(debit - credit, 0),
+      moduleMarks,
+      overallResult,
+      registration_status: r.status
+    };
+  });
+}
+
+app.get('/reports/course-wise', authenticate(['admin', 'device']), async (req, res) => {
+  const { course_id, status } = req.query;
+  let rows = await buildCourseWiseRows();
+
+  if (course_id) rows = rows.filter(r => String(r.course_id) === String(course_id));
+  if (status) rows = rows.filter(r => r.overallResult === status);
+
+  res.json(rows);
+});
+
+app.get('/reports/course-wise/pdf', authenticate(['admin', 'device']), async (req, res) => {
+  const { course_id, status } = req.query;
+  let rows = await buildCourseWiseRows();
+
+  if (course_id) rows = rows.filter(r => String(r.course_id) === String(course_id));
+  if (status) rows = rows.filter(r => r.overallResult === status);
+
+  let courseLabel = 'All Courses';
+  if (course_id) {
+    const { data: course } = await supabase.from('courses').select('code, name').eq('course_id', course_id).single();
+    if (course) courseLabel = `${course.code} \u2014 ${course.name}`;
+  }
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', 'inline; filename="course-wise-report.pdf"');
+
+  generateCourseWiseReportPdf({ courseLabel, statusLabel: status || 'All', rows }, res);
 });
 
 app.get('/reports/outstanding', authenticate(['admin', 'device']), async (req, res) => {
