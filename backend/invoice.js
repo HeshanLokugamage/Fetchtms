@@ -73,7 +73,7 @@ function generateInvoicePdf(data, outStream) {
   doc.font('Helvetica-BoldOblique').fontSize(9).fillColor('black')
     .text(
       'Fetch Consultants (Pvt) Ltd, 9/3A, Pepiliyana Mawatha, Kohuwala, Nugegoda. Sri Lanka  BR PV 00253968',
-      0, doc.page.height - 50, { align: 'center' }
+      0, doc.page.height - 65, { align: 'center', width: pageWidth, lineBreak: false }
     );
 
   doc.end();
