@@ -242,6 +242,36 @@ app.post('/journal/receipt', authenticate(['admin']), async (req, res) => {
 });
 
 // Printable/downloadable PDF for a specific receipt journal entry
+// List every receipt journal entry recorded for a specific student
+app.get('/journal/receipt/student/:studentId', authenticate(['admin', 'device']), async (req, res) => {
+  const { studentId } = req.params;
+
+  const { data: lines, error } = await supabase
+    .from('journal_lines')
+    .select('*, journal_entries!inner(entry_id, entry_date, entry_type, description, reversed)')
+    .eq('student_id', studentId);
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  const receiptsByEntry = {};
+  (lines || []).forEach(l => {
+    if (l.journal_entries.entry_type !== 'receipt') return;
+    const entryId = l.journal_entries.entry_id;
+    const amount = Math.max(Number(l.debit_amount) || 0, Number(l.credit_amount) || 0);
+    if (!receiptsByEntry[entryId] || amount > receiptsByEntry[entryId].amount) {
+      receiptsByEntry[entryId] = {
+        entry_id: entryId,
+        entry_date: l.journal_entries.entry_date,
+        description: l.journal_entries.description,
+        reversed: l.journal_entries.reversed,
+        amount
+      };
+    }
+  });
+
+  res.json(Object.values(receiptsByEntry).sort((a, b) => (a.entry_date < b.entry_date ? 1 : -1)));
+});
+
 app.get('/journal/receipt/:entryId/pdf', authenticate(['admin']), async (req, res) => {
   const { entryId } = req.params;
 

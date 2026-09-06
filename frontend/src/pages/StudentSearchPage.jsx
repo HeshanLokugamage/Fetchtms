@@ -52,11 +52,44 @@ export default function StudentSearchPage() {
           detail.certificates = certRes.data;
         } catch { detail.certificates = null; }
 
+        try {
+          const receiptRes = await axios.get(`https://fetchtms.onrender.com/journal/receipt/student/${s.student_id}`, { headers: getHeaders() });
+          detail.receipts = receiptRes.data;
+        } catch { detail.receipts = null; }
+
         detailsMap[s.student_id] = detail;
       }
       setDetailsByStudent(detailsMap);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to search students');
+    }
+  };
+
+  const downloadInvoice = async (registrationId) => {
+    setError('');
+    try {
+      const res = await axios.get(`https://fetchtms.onrender.com/registrations/${registrationId}/invoice/pdf`, {
+        headers: getHeaders(),
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      window.open(url, '_blank');
+    } catch (err) {
+      setError('Failed to download invoice');
+    }
+  };
+
+  const downloadReceipt = async (entryId) => {
+    setError('');
+    try {
+      const res = await axios.get(`https://fetchtms.onrender.com/journal/receipt/${entryId}/pdf`, {
+        headers: getHeaders(),
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      window.open(url, '_blank');
+    } catch (err) {
+      setError('Failed to open receipt');
     }
   };
 
@@ -104,11 +137,12 @@ export default function StudentSearchPage() {
             <h4>Registered Courses</h4>
             {detail.registrations && detail.registrations.length > 0 ? (
               <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '12px' }}>
-                <thead><tr><th>Course</th><th>Status</th><th>Registered At</th></tr></thead>
+                <thead><tr><th>Course</th><th>Status</th><th>Registered At</th><th>Invoice</th></tr></thead>
                 <tbody>
                   {detail.registrations.map(r => (
                     <tr key={r.registration_id}>
                       <td>{r.course_code ? `${r.course_code} — ${r.course_name}` : (r.course_name || r.course_id)}</td><td>{r.status}</td><td>{r.registered_at}</td>
+                      <td><button onClick={() => downloadInvoice(r.registration_id)}>Download</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -164,6 +198,24 @@ export default function StudentSearchPage() {
                 ) : <p>No payment records yet.</p>}
               </>
             ) : <p>Payment info unavailable.</p>}
+
+            <h4>Receipts</h4>
+            {detail.receipts && detail.receipts.length > 0 ? (
+              <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse', width: '100%' }}>
+                <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Status</th><th>Download</th></tr></thead>
+                <tbody>
+                  {detail.receipts.map(r => (
+                    <tr key={r.entry_id}>
+                      <td>{r.entry_date}</td>
+                      <td>{r.description}</td>
+                      <td>{r.amount}</td>
+                      <td>{r.reversed ? 'Reversed' : 'Active'}</td>
+                      <td><button onClick={() => downloadReceipt(r.entry_id)}>Download</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : <p>No receipts recorded yet.</p>}
           </div>
         );
       })}
