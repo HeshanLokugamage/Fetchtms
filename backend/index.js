@@ -693,7 +693,7 @@ app.patch('/users/change-password', authenticate([]), async (req, res) => {
 });
 
 app.post('/users', authenticate(['admin']), async (req, res) => {
-  const { username, password, role, student_id } = req.body;
+  const { username, password, role, student_id, resource_person_id } = req.body;
 
   const password_hash = await bcrypt.hash(password, 10);
 
@@ -720,7 +720,44 @@ app.post('/users', authenticate(['admin']), async (req, res) => {
     if (linkError) return res.status(500).json({ error: `User created but linking failed: ${linkError.message}` });
   }
 
+  if (role === 'resource_person' && resource_person_id) {
+    const { error: linkError } = await supabase
+      .from('resource_persons')
+      .update({ user_id: newUser.user_id })
+      .eq('trainer_id', resource_person_id);
+
+    if (linkError) return res.status(500).json({ error: `User created but linking failed: ${linkError.message}` });
+  }
+
   res.status(201).json({ message: 'User account created', user: { user_id: newUser.user_id, username: newUser.username, role: newUser.role } });
+});
+
+// Diagnostic: shows which resource persons, coordinators are missing a linked login,
+// and which students/resource persons have no login vs which do.
+app.get('/diagnostics/account-links', authenticate(['admin']), async (req, res) => {
+  const { data: users } = await supabase.from('users').select('user_id, username, role');
+  const { data: students } = await supabase.from('students').select('student_id, full_name, user_id');
+  const { data: resourcePersons } = await supabase.from('resource_persons').select('trainer_id, name, user_id');
+  const { data: coordinatorAssignments } = await supabase.from('course_coordinators').select('coordinator_id');
+  const { data: rpAssignments } = await supabase.from('course_resource_persons').select('trainer_id');
+
+  const coordinatorUserIds = [...new Set((coordinatorAssignments || []).map(c => c.coordinator_id))];
+  const coordinatorsWithNoCourses = (users || [])
+    .filter(u => u.role === 'coordinator' && !coordinatorUserIds.includes(u.user_id));
+
+  const assignedTrainerIds = [...new Set((rpAssignments || []).map(a => a.trainer_id))];
+  const resourcePersonsWithNoCourses = (resourcePersons || [])
+    .filter(rp => !assignedTrainerIds.includes(rp.trainer_id));
+
+  res.json({
+    studentsWithoutLogin: (students || []).filter(s => !s.user_id).map(s => ({ student_id: s.student_id, full_name: s.full_name })),
+    resourcePersonsWithoutLogin: (resourcePersons || []).filter(rp => !rp.user_id).map(rp => ({ trainer_id: rp.trainer_id, name: rp.name })),
+    resourcePersonUserAccountsUnlinked: (users || [])
+      .filter(u => u.role === 'resource_person' && !(resourcePersons || []).some(rp => rp.user_id === u.user_id))
+      .map(u => ({ user_id: u.user_id, username: u.username })),
+    coordinatorsWithNoCourseAssigned: coordinatorsWithNoCourses.map(u => ({ user_id: u.user_id, username: u.username })),
+    resourcePersonsWithNoCourseAssigned: resourcePersonsWithNoCourses.map(rp => ({ trainer_id: rp.trainer_id, name: rp.name }))
+  });
 });
 
 app.post('/resource-persons', authenticate(['admin']), async (req, res) => {

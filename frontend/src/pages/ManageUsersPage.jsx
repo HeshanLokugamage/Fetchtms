@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 export default function ManageUsersPage() {
   const [users, setUsers] = useState([]);
+  const [diagnostics, setDiagnostics] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [newPasswords, setNewPasswords] = useState({});
@@ -20,7 +21,13 @@ export default function ManageUsersPage() {
       .catch(err => setError(err.response?.data?.error || 'Failed to load users'));
   };
 
-  useEffect(() => { loadUsers(); }, []);
+  const loadDiagnostics = () => {
+    axios.get('https://fetchtms.onrender.com/diagnostics/account-links', { headers: getHeaders() })
+      .then(res => setDiagnostics(res.data))
+      .catch(() => setDiagnostics(null));
+  };
+
+  useEffect(() => { loadUsers(); loadDiagnostics(); }, []);
 
   const handleReset = async (userId, username) => {
     setError(''); setMessage('');
@@ -49,6 +56,53 @@ export default function ManageUsersPage() {
 
       {message && <p style={{ color: 'green' }}>{message}</p>}
       {error && <p style={{ color: 'red' }}>{error}</p>}
+
+      <h3>Account & Assignment Check</h3>
+      {diagnostics ? (
+        <div style={{ marginBottom: '20px' }}>
+          {diagnostics.studentsWithoutLogin.length === 0 &&
+           diagnostics.resourcePersonsWithoutLogin.length === 0 &&
+           diagnostics.resourcePersonUserAccountsUnlinked.length === 0 &&
+           diagnostics.coordinatorsWithNoCourseAssigned.length === 0 &&
+           diagnostics.resourcePersonsWithNoCourseAssigned.length === 0 ? (
+            <p style={{ color: '#2e7d32' }}>Everything checked out — no missing links found.</p>
+          ) : (
+            <>
+              {diagnostics.resourcePersonUserAccountsUnlinked.length > 0 && (
+                <p style={{ color: '#c62828' }}>
+                  <strong>Resource person logins not linked to a profile</strong> (this causes "No resource person record linked" errors):{' '}
+                  {diagnostics.resourcePersonUserAccountsUnlinked.map(u => u.username).join(', ')}
+                </p>
+              )}
+              {diagnostics.resourcePersonsWithoutLogin.length > 0 && (
+                <p style={{ color: '#f57c00' }}>
+                  <strong>Resource persons with no login account:</strong>{' '}
+                  {diagnostics.resourcePersonsWithoutLogin.map(rp => rp.name).join(', ')}
+                </p>
+              )}
+              {diagnostics.studentsWithoutLogin.length > 0 && (
+                <p style={{ color: 'gray' }}>
+                  <strong>Students with no login account</strong> ({diagnostics.studentsWithoutLogin.length}) — normal unless you need them to log in.
+                </p>
+              )}
+              {diagnostics.coordinatorsWithNoCourseAssigned.length > 0 && (
+                <p style={{ color: '#f57c00' }}>
+                  <strong>Coordinator accounts with no course assigned:</strong>{' '}
+                  {diagnostics.coordinatorsWithNoCourseAssigned.map(u => u.username).join(', ')}
+                </p>
+              )}
+              {diagnostics.resourcePersonsWithNoCourseAssigned.length > 0 && (
+                <p style={{ color: '#f57c00' }}>
+                  <strong>Resource persons with no course assigned:</strong>{' '}
+                  {diagnostics.resourcePersonsWithNoCourseAssigned.map(rp => rp.name).join(', ')}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      ) : <p style={{ color: 'gray', marginBottom: '20px' }}>Loading account check...</p>}
+
+      <h3>All User Accounts</h3>
 
       <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%' }}>
         <thead>

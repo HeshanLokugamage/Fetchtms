@@ -8,10 +8,12 @@ export default function CreateUserPage() {
   const navigate = useNavigate();
 
   const [students, setStudents] = useState([]);
+  const [resourcePersons, setResourcePersons] = useState([]);
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState('student');
   const [newUserStudentId, setNewUserStudentId] = useState('');
+  const [newUserResourcePersonId, setNewUserResourcePersonId] = useState('');
 
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -22,6 +24,9 @@ export default function CreateUserPage() {
     axios.get('https://fetchtms.onrender.com/students', { headers: getHeaders() })
       .then(res => setStudents(res.data))
       .catch(() => {});
+    axios.get('https://fetchtms.onrender.com/resource-persons', { headers: getHeaders() })
+      .then(res => setResourcePersons(res.data))
+      .catch(() => {});
   }, []);
 
   const handleCreateUser = async (e) => {
@@ -30,10 +35,11 @@ export default function CreateUserPage() {
     try {
       await axios.post('https://fetchtms.onrender.com/users', {
         username: newUsername, password: newPassword, role: newUserRole,
-        student_id: newUserRole === 'student' ? newUserStudentId : undefined
+        student_id: newUserRole === 'student' ? newUserStudentId : undefined,
+        resource_person_id: newUserRole === 'resource_person' ? newUserResourcePersonId : undefined
       }, { headers: getHeaders() });
       setMessage(`User account "${newUsername}" created successfully`);
-      setNewUsername(''); setNewPassword(''); setNewUserRole('student'); setNewUserStudentId('');
+      setNewUsername(''); setNewPassword(''); setNewUserRole('student'); setNewUserStudentId(''); setNewUserResourcePersonId('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create user account');
     }
@@ -90,6 +96,29 @@ export default function CreateUserPage() {
             {students.length === 0 && (
               <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>
                 No students found — register a student first.
+              </p>
+            )}
+          </div>
+        )}
+        {newUserRole === 'resource_person' && (
+          <div style={{ marginBottom: '10px' }}>
+            <label>Link to Resource Person</label><br />
+            <select
+              value={newUserResourcePersonId}
+              onChange={e => setNewUserResourcePersonId(e.target.value)}
+              style={{ width: '100%', padding: '8px' }}
+              required
+            >
+              <option value="">Select Resource Person</option>
+              {resourcePersons.map(rp => (
+                <option key={rp.trainer_id} value={rp.trainer_id}>
+                  {rp.name} (ID: {rp.trainer_id})
+                </option>
+              ))}
+            </select>
+            {resourcePersons.length === 0 && (
+              <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>
+                No resource persons found — create one first.
               </p>
             )}
           </div>
