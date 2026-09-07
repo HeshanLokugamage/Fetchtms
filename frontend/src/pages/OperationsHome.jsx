@@ -11,6 +11,7 @@ export default function OperationsHome() {
     { icon: '📋', title: 'Register Student for Course', desc: 'Enroll a student and record the fee owed', path: '/admin/operations/register-course' },
     { icon: '👤', title: 'Create Resource Person', desc: 'Add a new trainer profile', path: '/admin/operations/create-resource-person' },
     { icon: '🔑', title: 'Create User Account', desc: 'Create a login for a student, trainer, or staff member', path: '/admin/operations/create-user' },
+    { icon: '🔓', title: 'Manage Users / Reset Passwords', desc: 'View all accounts and reset anyone\u2019s password', path: '/admin/operations/manage-users' },
     { icon: '🧑‍🏫', title: 'Assign Coordinator to Course', desc: 'Set who reviews marks for a course', path: '/admin/operations/assign-coordinator' },
     { icon: '🧾', title: 'Receipt Journal', desc: 'Record a student fee receipt', path: '/admin/operations/receipt-journal' },
     { icon: '💸', title: 'Payment Journal', desc: 'Record company payments and expenses', path: '/admin/operations/payment-journal' },

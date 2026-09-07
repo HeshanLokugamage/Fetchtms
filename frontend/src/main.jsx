@@ -21,6 +21,7 @@ import RegisterCoursePage from './pages/RegisterCoursePage.jsx'
 import CreateResourcePersonPage from './pages/CreateResourcePersonPage.jsx'
 import ResourcePersonsListPage from './pages/ResourcePersonsListPage.jsx'
 import CreateUserPage from './pages/CreateUserPage.jsx'
+import ManageUsersPage from './pages/ManageUsersPage.jsx'
 import AssignCoordinatorPage from './pages/AssignCoordinatorPage.jsx'
 import ReceiptJournalPage from './pages/ReceiptJournalPage.jsx'
 import PaymentJournalPage from './pages/PaymentJournalPage.jsx'
@@ -112,6 +113,10 @@ createRoot(document.getElementById('root')).render(
         <Route
           path="/admin/operations/create-user"
           element={<ProtectedRoute role="admin"><CreateUserPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/operations/manage-users"
+          element={<ProtectedRoute role="admin"><ManageUsersPage /></ProtectedRoute>}
         />
         <Route
           path="/admin/operations/assign-coordinator"

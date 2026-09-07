@@ -43,7 +43,10 @@ export default function CreateUserPage() {
     <div style={{ maxWidth: '500px', margin: '40px auto', fontFamily: 'sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2>Create User Account</h2>
-        <button onClick={() => navigate('/admin/operations')} style={{ padding: '8px 16px' }}>← Back</button>
+        <div className="btn-row">
+          <button onClick={() => navigate('/admin/operations/manage-users')}>Manage Users / Reset Passwords</button>
+          <button onClick={() => navigate('/admin/operations')}>← Back</button>
+        </div>
       </div>
 
       {message && <p style={{ color: 'green' }}>{message}</p>}

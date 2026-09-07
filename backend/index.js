@@ -631,6 +631,29 @@ app.get('/users', authenticate(['admin']), async (req, res) => {
   res.json(data);
 });
 
+// Admin resets any user's password without needing their current one.
+// The user is forced to change it again on their next login.
+app.patch('/users/:id/reset-password', authenticate(['admin']), async (req, res) => {
+  const { id } = req.params;
+  const { newPassword } = req.body;
+
+  if (!newPassword || newPassword.length < 4) {
+    return res.status(400).json({ error: 'New password must be at least 4 characters' });
+  }
+
+  const newHash = await bcrypt.hash(newPassword, 10);
+  const { data, error } = await supabase
+    .from('users')
+    .update({ password_hash: newHash, force_password_reset: true })
+    .eq('user_id', id)
+    .select('user_id, username, role');
+
+  if (error) return res.status(500).json({ error: error.message });
+  if (!data || data.length === 0) return res.status(404).json({ error: 'User not found' });
+
+  res.json({ message: 'Password reset successfully', user: data[0] });
+});
+
 app.patch('/users/change-password', authenticate([]), async (req, res) => {
   const { currentPassword, newPassword } = req.body;
 
