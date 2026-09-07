@@ -135,7 +135,7 @@ export default function StudentDashboard() {
       </table>
 
       <h3>My Payments ({payments.length})</h3>
-      <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%' }}>
+      <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '30px' }}>
         <thead>
           <tr>
             <th>Course</th><th>Type</th><th>Amount</th><th>Status</th>
@@ -150,6 +150,25 @@ export default function StudentDashboard() {
               <td>{p.status}</td>
             </tr>
           ))}
+        </tbody>
+      </table>
+
+      <h3>My Attendance ({attendance.length})</h3>
+      <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%' }}>
+        <thead>
+          <tr>
+            <th>Course</th><th>Session Date</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {attendance.map(a => (
+            <tr key={a.attendance_id}>
+              <td>{a.course_code ? `${a.course_code} — ${a.course_name}` : (a.course_name || a.course_id || '—')}</td>
+              <td>{a.session_date || '—'}</td>
+              <td style={{ textTransform: 'capitalize' }}>{a.status}</td>
+            </tr>
+          ))}
+          {attendance.length === 0 && <tr><td colSpan="3">No attendance recorded yet.</td></tr>}
         </tbody>
       </table>
 

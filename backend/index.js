@@ -112,6 +112,18 @@ async function isCoordinatorForCourse(userId, courseId) {
   return !error && !!data;
 }
 
+async function isResourcePersonForCourse(trainerId, courseId) {
+  if (!trainerId) return false;
+  const { data, error } = await supabase
+    .from('course_resource_persons')
+    .select('*')
+    .eq('trainer_id', trainerId)
+    .eq('course_id', courseId)
+    .single();
+
+  return !error && !!data;
+}
+
 // ===== ACCOUNTING MODULE =====
 
 app.get('/accounts', authenticate(['admin']), async (req, res) => {
@@ -149,10 +161,10 @@ app.post('/vendors', authenticate(['admin']), async (req, res) => {
 async function attachCourseInfo(rows) {
   const courseIds = [...new Set(rows.map(r => r.course_id).filter(Boolean))];
   if (courseIds.length === 0) return rows;
-  const { data: courses } = await supabase.from('courses').select('course_id, code, name').in('course_id', courseIds);
+  const { data: courses } = await supabase.from('courses').select('course_id, code, name, status').in('course_id', courseIds);
   return rows.map(r => {
     const c = (courses || []).find(c => c.course_id === r.course_id);
-    return { ...r, course_code: c ? c.code : null, course_name: c ? c.name : null };
+    return { ...r, course_code: c ? c.code : null, course_name: c ? c.name : null, course_status: c ? c.status : null };
   });
 }
 
@@ -1019,6 +1031,20 @@ app.get('/course-coordinators/my', authenticate(['coordinator']), async (req, re
   res.json(enriched);
 });
 
+app.get('/course-resource-persons/my', authenticate(['resource_person']), async (req, res) => {
+  const trainerId = await getTrainerIdForUser(req.user.userId);
+  if (!trainerId) return res.status(404).json({ error: 'No resource person record linked to this account' });
+
+  const { data, error } = await supabase
+    .from('course_resource_persons')
+    .select('*')
+    .eq('trainer_id', trainerId);
+
+  if (error) return res.status(500).json({ error: error.message });
+  const enriched = await attachCourseInfo(data);
+  res.json(enriched);
+});
+
 app.post('/course-sessions', authenticate(['admin', 'device', 'resource_person']), async (req, res) => {
   const { course_id, session_date, start_time, end_time, venue } = req.body;
 
@@ -1306,12 +1332,18 @@ app.get('/registrations/:id/invoice/pdf', authenticate(['admin', 'device', 'stud
   }, res);
 });
 
-app.get('/registrations/:courseId', authenticate(['admin', 'device', 'coordinator']), async (req, res) => {
+app.get('/registrations/:courseId', authenticate(['admin', 'device', 'coordinator', 'resource_person']), async (req, res) => {
   const { courseId } = req.params;
 
   if (req.user.role === 'coordinator') {
     const allowed = await isCoordinatorForCourse(req.user.userId, courseId);
     if (!allowed) return res.status(403).json({ error: 'You are not assigned as coordinator for this course' });
+  }
+
+  if (req.user.role === 'resource_person') {
+    const trainerId = await getTrainerIdForUser(req.user.userId);
+    const allowed = await isResourcePersonForCourse(trainerId, courseId);
+    if (!allowed) return res.status(403).json({ error: 'You are not assigned as resource person for this course' });
   }
 
   const { data: registrations, error } = await supabase
@@ -1371,7 +1403,20 @@ app.get('/attendance/my', authenticate(['student']), async (req, res) => {
     .eq('student_id', studentId);
 
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+
+  const sessionIds = [...new Set(data.map(a => a.session_id).filter(Boolean))];
+  let sessions = [];
+  if (sessionIds.length > 0) {
+    const { data: sessionData } = await supabase.from('course_sessions').select('*').in('session_id', sessionIds);
+    sessions = sessionData || [];
+  }
+  const enrichedWithSession = data.map(a => {
+    const s = sessions.find(s => s.session_id === a.session_id);
+    return { ...a, session_date: s ? s.session_date : null, course_id: s ? s.course_id : null };
+  });
+  const enriched = await attachCourseInfo(enrichedWithSession);
+
+  res.json(enriched);
 });
 
 function computeGrade(marks) {
@@ -1425,7 +1470,29 @@ app.get('/assessments/pending-review/:courseId', authenticate(['coordinator']), 
     .eq('reviewed', false);
 
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  const enriched = await attachModuleInfo(data);
+  const { data: students } = await supabase.from('students').select('student_id, full_name');
+  res.json(enriched.map(a => ({ ...a, student_name: (students || []).find(s => s.student_id === a.student_id)?.full_name || null })));
+});
+
+// Full marks list (reviewed and unreviewed) for a coordinator's assigned course
+app.get('/assessments/course/:courseId', authenticate(['coordinator', 'admin']), async (req, res) => {
+  const { courseId } = req.params;
+
+  if (req.user.role === 'coordinator') {
+    const allowed = await isCoordinatorForCourse(req.user.userId, courseId);
+    if (!allowed) return res.status(403).json({ error: 'You are not assigned as coordinator for this course' });
+  }
+
+  const { data, error } = await supabase
+    .from('assessments')
+    .select('*')
+    .eq('course_id', courseId);
+
+  if (error) return res.status(500).json({ error: error.message });
+  const enriched = await attachModuleInfo(data);
+  const { data: students } = await supabase.from('students').select('student_id, full_name');
+  res.json(enriched.map(a => ({ ...a, student_name: (students || []).find(s => s.student_id === a.student_id)?.full_name || null })));
 });
 
 app.patch('/assessments/:id/review', authenticate(['coordinator']), async (req, res) => {

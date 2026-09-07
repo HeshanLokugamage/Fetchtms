@@ -5,7 +5,6 @@ import { useNavigate } from 'react-router-dom';
 export default function ResourcePersonDashboard() {
   const [courses, setCourses] = useState([]);
   const [sessions, setSessions] = useState([]);
-  const [students, setStudents] = useState([]);
   const [modules, setModules] = useState([]);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -16,12 +15,18 @@ export default function ResourcePersonDashboard() {
   const [endTime, setEndTime] = useState('');
   const [venue, setVenue] = useState('');
 
+  // Mark Attendance — scoped to a selected course
+  const [attCourseId, setAttCourseId] = useState('');
+  const [attCourseStudents, setAttCourseStudents] = useState([]);
+  const [attSessions, setAttSessions] = useState([]);
   const [sessionId, setSessionId] = useState('');
   const [attStudentId, setAttStudentId] = useState('');
   const [attStatus, setAttStatus] = useState('present');
 
-  const [asStudentId, setAsStudentId] = useState('');
+  // Enter Marks — scoped to a selected course
   const [asCourseId, setAsCourseId] = useState('');
+  const [asCourseStudents, setAsCourseStudents] = useState([]);
+  const [asStudentId, setAsStudentId] = useState('');
   const [asModuleId, setAsModuleId] = useState('');
   const [evalType, setEvalType] = useState('assignment');
   const [marks, setMarks] = useState('');
@@ -33,14 +38,16 @@ export default function ResourcePersonDashboard() {
     return { Authorization: `Bearer ${token}` };
   };
 
-  const loadCourses = () => {
-    axios.get('https://fetchtms.onrender.com/courses', { headers: getHeaders() })
-      .then(res => setCourses(res.data))
-      .catch(err => setError(err.response?.data?.error || 'Failed to load courses'));
+  const loadMyCourses = () => {
+    axios.get('https://fetchtms.onrender.com/course-resource-persons/my', { headers: getHeaders() })
+      .then(res => setCourses(res.data.map(r => ({
+        course_id: r.course_id, code: r.course_code, name: r.course_name, status: r.course_status
+      }))))
+      .catch(err => setError(err.response?.data?.error || 'Failed to load your assigned courses'));
   };
 
   useEffect(() => {
-    loadCourses();
+    loadMyCourses();
   }, []);
 
   useEffect(() => {
@@ -48,10 +55,32 @@ export default function ResourcePersonDashboard() {
       axios.get(`https://fetchtms.onrender.com/modules/${asCourseId}`, { headers: getHeaders() })
         .then(res => setModules(res.data))
         .catch(() => setModules([]));
+      axios.get(`https://fetchtms.onrender.com/registrations/${asCourseId}`, { headers: getHeaders() })
+        .then(res => setAsCourseStudents(res.data))
+        .catch(() => setAsCourseStudents([]));
     } else {
       setModules([]);
+      setAsCourseStudents([]);
     }
+    setAsStudentId(''); setAsModuleId('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asCourseId]);
+
+  useEffect(() => {
+    if (attCourseId) {
+      axios.get(`https://fetchtms.onrender.com/registrations/${attCourseId}`, { headers: getHeaders() })
+        .then(res => setAttCourseStudents(res.data))
+        .catch(() => setAttCourseStudents([]));
+      axios.get(`https://fetchtms.onrender.com/course-sessions/${attCourseId}`, { headers: getHeaders() })
+        .then(res => setAttSessions(res.data))
+        .catch(() => setAttSessions([]));
+    } else {
+      setAttCourseStudents([]);
+      setAttSessions([]);
+    }
+    setAttStudentId(''); setSessionId('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attCourseId]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -83,7 +112,7 @@ export default function ResourcePersonDashboard() {
   };
 
   const loadSessions = async (courseId) => {
-    if (!courseId) return;
+    if (!courseId) { setSessions([]); return; }
     try {
       const res = await axios.get(`https://fetchtms.onrender.com/course-sessions/${courseId}`, { headers: getHeaders() });
       setSessions(res.data);
@@ -103,7 +132,6 @@ export default function ResourcePersonDashboard() {
         status: attStatus
       }, { headers: getHeaders() });
       setMessage('Attendance marked successfully');
-      setSessionId('');
       setAttStudentId('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to mark attendance');
@@ -124,7 +152,6 @@ export default function ResourcePersonDashboard() {
       }, { headers: getHeaders() });
       setMessage(`Marks recorded (pending coordinator review). Assessment ID: ${res.data.assessment.assessment_id}, Grade: ${res.data.assessment.grade}`);
       setAsStudentId('');
-      setAsCourseId('');
       setAsModuleId('');
       setEvalType('assignment');
       setMarks('');
@@ -144,20 +171,20 @@ export default function ResourcePersonDashboard() {
       {message && <p style={{ color: 'green' }}>{message}</p>}
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
-      <h3>Courses ({courses.length})</h3>
+      <h3>My Courses ({courses.length})</h3>
       <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '30px' }}>
         <thead>
-          <tr><th>ID</th><th>Code</th><th>Name</th><th>Status</th></tr>
+          <tr><th>Code</th><th>Name</th><th>Status</th></tr>
         </thead>
         <tbody>
           {courses.map(c => (
             <tr key={c.course_id}>
-              <td>{c.course_id}</td>
               <td>{c.code}</td>
               <td>{c.name}</td>
               <td>{c.status}</td>
             </tr>
           ))}
+          {courses.length === 0 && <tr><td colSpan="3">No courses assigned to you yet.</td></tr>}
         </tbody>
       </table>
 
@@ -220,12 +247,37 @@ export default function ResourcePersonDashboard() {
       <h3>Mark Attendance</h3>
       <form onSubmit={handleMarkAttendance} style={{ marginBottom: '30px' }}>
         <div style={{ marginBottom: '10px' }}>
-          <label>Session ID</label><br />
-          <input value={sessionId} onChange={e => setSessionId(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+          <label>Course</label><br />
+          <select value={attCourseId} onChange={e => setAttCourseId(e.target.value)} style={{ width: '100%', padding: '8px' }} required>
+            <option value="">Select Course</option>
+            {courses.map(c => (
+              <option key={c.course_id} value={c.course_id}>{c.code} — {c.name}</option>
+            ))}
+          </select>
         </div>
         <div style={{ marginBottom: '10px' }}>
-          <label>Student ID</label><br />
-          <input value={attStudentId} onChange={e => setAttStudentId(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+          <label>Session</label><br />
+          <select value={sessionId} onChange={e => setSessionId(e.target.value)} style={{ width: '100%', padding: '8px' }} required disabled={!attCourseId}>
+            <option value="">{attCourseId ? 'Select Session' : 'Select a Course first'}</option>
+            {attSessions.map(s => (
+              <option key={s.session_id} value={s.session_id}>{s.session_date} ({s.start_time}–{s.end_time})</option>
+            ))}
+          </select>
+          {attCourseId && attSessions.length === 0 && (
+            <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>No sessions created for this course yet.</p>
+          )}
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Student</label><br />
+          <select value={attStudentId} onChange={e => setAttStudentId(e.target.value)} style={{ width: '100%', padding: '8px' }} required disabled={!attCourseId}>
+            <option value="">{attCourseId ? 'Select Student' : 'Select a Course first'}</option>
+            {attCourseStudents.map(r => (
+              <option key={r.student_id} value={r.student_id}>{r.student?.full_name || `Student #${r.student_id}`}</option>
+            ))}
+          </select>
+          {attCourseId && attCourseStudents.length === 0 && (
+            <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>No students registered for this course yet.</p>
+          )}
         </div>
         <div style={{ marginBottom: '10px' }}>
           <label>Status</label><br />
@@ -240,10 +292,6 @@ export default function ResourcePersonDashboard() {
       <h3>Enter Module Marks</h3>
       <form onSubmit={handleEnterMarks}>
         <div style={{ marginBottom: '10px' }}>
-          <label>Student ID</label><br />
-          <input value={asStudentId} onChange={e => setAsStudentId(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
-        </div>
-        <div style={{ marginBottom: '10px' }}>
           <label>Course</label><br />
           <select value={asCourseId} onChange={e => setAsCourseId(e.target.value)} style={{ width: '100%', padding: '8px' }} required>
             <option value="">Select Course</option>
@@ -251,6 +299,18 @@ export default function ResourcePersonDashboard() {
               <option key={c.course_id} value={c.course_id}>{c.code} — {c.name}</option>
             ))}
           </select>
+        </div>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Student</label><br />
+          <select value={asStudentId} onChange={e => setAsStudentId(e.target.value)} style={{ width: '100%', padding: '8px' }} required disabled={!asCourseId}>
+            <option value="">{asCourseId ? 'Select Student' : 'Select a Course first'}</option>
+            {asCourseStudents.map(r => (
+              <option key={r.student_id} value={r.student_id}>{r.student?.full_name || `Student #${r.student_id}`}</option>
+            ))}
+          </select>
+          {asCourseId && asCourseStudents.length === 0 && (
+            <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>No students registered for this course yet.</p>
+          )}
         </div>
         <div style={{ marginBottom: '10px' }}>
           <label>Module</label><br />

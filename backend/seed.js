@@ -94,6 +94,34 @@ const registrationPlan = [
   { student: 'Chanaka Wijesuriya', course: 'TR-COM101', paid: 12000 }
 ];
 
+// Course sessions and attendance — so Resource Person / Coordinator dashboards and the
+// student's "My Attendance" view all have real data to show.
+const sessionPlan = [
+  { courseCode: 'TR-CHS101', session_date: '2026-09-10', start_time: '09:00', end_time: '16:00', venue: 'Hector Kobbekaduwa Agrarian Research and Training Institute, Colombo 07' },
+  { courseCode: 'TR-PMF201', session_date: '2026-09-15', start_time: '09:00', end_time: '12:00', venue: 'Fetch Consultants Training Center, Nugegoda' },
+  { courseCode: 'TR-PMF201', session_date: '2026-09-22', start_time: '09:00', end_time: '12:00', venue: 'Fetch Consultants Training Center, Nugegoda' },
+  { courseCode: 'TR-IHS110', session_date: '2026-09-20', start_time: '09:00', end_time: '13:00', venue: 'Fetch Consultants Training Center, Nugegoda' },
+  { courseCode: 'TR-COM101', session_date: '2026-06-01', start_time: '09:00', end_time: '13:00', venue: 'Fetch Consultants Training Center, Nugegoda' },
+  { courseCode: 'TR-COM101', session_date: '2026-06-08', start_time: '09:00', end_time: '13:00', venue: 'Fetch Consultants Training Center, Nugegoda' }
+];
+
+// Attendance keyed by (course, session date, student, status)
+const attendancePlan = [
+  { courseCode: 'TR-CHS101', session_date: '2026-09-10', student: 'Kavindu Wickramasinghe', status: 'present' },
+  { courseCode: 'TR-CHS101', session_date: '2026-09-10', student: 'Nimesha Kodithuwakku', status: 'present' },
+  { courseCode: 'TR-CHS101', session_date: '2026-09-10', student: 'Nuwan Dissanayake', status: 'absent' },
+  { courseCode: 'TR-PMF201', session_date: '2026-09-15', student: 'Sanduni Rajapaksha', status: 'present' },
+  { courseCode: 'TR-PMF201', session_date: '2026-09-15', student: 'Ravindu Gunasekara', status: 'present' },
+  { courseCode: 'TR-PMF201', session_date: '2026-09-22', student: 'Sanduni Rajapaksha', status: 'present' },
+  { courseCode: 'TR-PMF201', session_date: '2026-09-22', student: 'Ravindu Gunasekara', status: 'absent' },
+  { courseCode: 'TR-IHS110', session_date: '2026-09-20', student: 'Tharindu Bandara', status: 'present' },
+  { courseCode: 'TR-IHS110', session_date: '2026-09-20', student: 'Malith Senanayake', status: 'present' },
+  { courseCode: 'TR-COM101', session_date: '2026-06-01', student: 'Yasodha Perumal', status: 'present' },
+  { courseCode: 'TR-COM101', session_date: '2026-06-01', student: 'Chanaka Wijesuriya', status: 'present' },
+  { courseCode: 'TR-COM101', session_date: '2026-06-08', student: 'Yasodha Perumal', status: 'present' },
+  { courseCode: 'TR-COM101', session_date: '2026-06-08', student: 'Chanaka Wijesuriya', status: 'absent' }
+];
+
 // Assessments (marks) — covers several courses, not just the demo one, so "who passed"
 // can be checked from Course Details across the system. Deliberately includes a mix:
 // fully paid + passed (certificate-eligible), passed but NOT fully paid (blocked by balance),
@@ -324,6 +352,41 @@ async function seed() {
     }
   }
   console.log(`  ${regCount} new registrations, ${invoiceCount} new invoice entries, ${receiptEntryCount} new receipt entries added.`);
+
+  console.log('Checking/seeding course sessions...');
+  const { data: existingSessions } = await supabase.from('course_sessions').select('*');
+  const sessionsToInsert = sessionPlan
+    .map(s => ({ course_id: courseByCode(s.courseCode).course_id, session_date: s.session_date, start_time: s.start_time, end_time: s.end_time, venue: s.venue }))
+    .filter(s => !existingSessions.some(e => e.course_id === s.course_id && e.session_date === s.session_date));
+  let insertedSessions = [];
+  if (sessionsToInsert.length > 0) {
+    const { data, error } = await supabase.from('course_sessions').insert(sessionsToInsert).select();
+    if (error) throw error;
+    insertedSessions = data;
+  }
+  const allSessions = [...existingSessions, ...insertedSessions];
+  console.log(`  ${insertedSessions.length} added, ${allSessions.length - insertedSessions.length} already existed.`);
+
+  console.log('Checking/seeding attendance...');
+  const { data: existingAttendance } = await supabase.from('attendance').select('*');
+  let attendanceCount = 0;
+  for (const a of attendancePlan) {
+    const student = studentByEmail(emailByName[a.student]);
+    const course = courseByCode(a.courseCode);
+    if (!student || !course) continue;
+    const session = allSessions.find(s => s.course_id === course.course_id && s.session_date === a.session_date);
+    if (!session) continue;
+
+    const already = existingAttendance.some(e => e.session_id === session.session_id && e.student_id === student.student_id);
+    if (already) continue;
+
+    const { error: attError } = await supabase
+      .from('attendance')
+      .insert([{ session_id: session.session_id, student_id: student.student_id, status: a.status }]);
+    if (attError) throw attError;
+    attendanceCount++;
+  }
+  console.log(`  ${attendanceCount} new attendance records added.`);
 
   console.log('Checking/seeding assessments (assignment/exam marks)...');
   const { data: existingAssessments } = await supabase.from('assessments').select('*');

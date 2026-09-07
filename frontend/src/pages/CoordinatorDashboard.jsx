@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
 export default function CoordinatorDashboard() {
   const [myCourses, setMyCourses] = useState([]);
   const [courseId, setCourseId] = useState('');
-  const [pendingAssessments, setPendingAssessments] = useState([]);
+  const [allAssessments, setAllAssessments] = useState([]);
   const [students, setStudents] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [error, setError] = useState('');
@@ -25,7 +25,8 @@ export default function CoordinatorDashboard() {
   useEffect(() => {
     axios.get('https://fetchtms.onrender.com/course-coordinators/my', { headers: getHeaders() })
       .then(res => setMyCourses(res.data))
-      .catch(() => {});
+      .catch(err => setError(err.response?.data?.error || 'Failed to load your assigned courses'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleLogout = () => {
@@ -34,15 +35,15 @@ export default function CoordinatorDashboard() {
     navigate('/login');
   };
 
-  const loadPending = async (e) => {
-    e.preventDefault();
+  const loadMarks = async (e) => {
+    if (e) e.preventDefault();
     setError(''); setMessage('');
     try {
-      const res = await axios.get(`https://fetchtms.onrender.com/assessments/pending-review/${courseId}`, { headers: getHeaders() });
-      setPendingAssessments(res.data);
+      const res = await axios.get(`https://fetchtms.onrender.com/assessments/course/${courseId}`, { headers: getHeaders() });
+      setAllAssessments(res.data);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load pending assessments');
-      setPendingAssessments([]);
+      setError(err.response?.data?.error || 'Failed to load marks');
+      setAllAssessments([]);
     }
   };
 
@@ -51,14 +52,14 @@ export default function CoordinatorDashboard() {
     try {
       await axios.patch(`https://fetchtms.onrender.com/assessments/${assessmentId}/review`, {}, { headers: getHeaders() });
       setMessage('Marks reviewed and published successfully');
-      setPendingAssessments(prev => prev.filter(a => a.assessment_id !== assessmentId));
+      setAllAssessments(prev => prev.map(a => a.assessment_id === assessmentId ? { ...a, reviewed: true, published: true } : a));
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to review marks');
     }
   };
 
   const loadCourseStudentsAndSessions = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setError(''); setMessage('');
     try {
       const [regRes, sessRes] = await Promise.all([
@@ -93,8 +94,8 @@ export default function CoordinatorDashboard() {
   const selectCourse = (id) => {
     setCourseId(id);
     setAttCourseId(id);
-    loadPending({ preventDefault: () => {} });
-    loadCourseStudentsAndSessions({ preventDefault: () => {} });
+    loadMarks();
+    loadCourseStudentsAndSessions();
   };
 
   return (
@@ -103,7 +104,7 @@ export default function CoordinatorDashboard() {
         <h2>Coordinator Dashboard</h2>
         <button onClick={handleLogout}>Log Out</button>
       </div>
-      <span className="page-subtitle">Review and publish marks, and manage attendance for your assigned course</span>
+      <span className="page-subtitle">Review and publish marks, and manage attendance for your assigned courses</span>
 
       {message && <p style={{ color: 'green' }}>{message}</p>}
       {error && <p style={{ color: 'red' }}>{error}</p>}
@@ -121,54 +122,44 @@ export default function CoordinatorDashboard() {
         <p style={{ marginBottom: '20px', color: 'gray' }}>No courses assigned to you yet — ask an admin to assign you as coordinator.</p>
       )}
 
-      <h3>View Pending Marks for Review</h3>
-      <form onSubmit={loadPending} style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-        <input
-          value={courseId}
-          onChange={e => setCourseId(e.target.value)}
-          placeholder="Enter Course ID"
-          style={{ flex: 1, padding: '8px' }}
-          required
-        />
-        <button type="submit" style={{ padding: '8px 16px' }}>Load</button>
-      </form>
-
-      {pendingAssessments.length > 0 ? (
-        <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '30px' }}>
-          <thead>
-            <tr><th>Student ID</th><th>Module ID</th><th>Marks</th><th>Grade</th><th>Action</th></tr>
-          </thead>
-          <tbody>
-            {pendingAssessments.map(a => (
-              <tr key={a.assessment_id}>
-                <td>{a.student_id}</td>
-                <td>{a.module_id}</td>
-                <td>{a.marks}</td>
-                <td>{a.grade}</td>
-                <td>
-                  <button onClick={() => handleReview(a.assessment_id)} style={{ padding: '4px 10px' }}>
-                    Approve & Publish
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <h3>Marks for Selected Course</h3>
+      {courseId ? (
+        allAssessments.length > 0 ? (
+          <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '30px' }}>
+            <thead>
+              <tr><th>Student</th><th>Module</th><th>Type</th><th>Marks</th><th>Grade</th><th>Status</th><th>Action</th></tr>
+            </thead>
+            <tbody>
+              {allAssessments.map(a => (
+                <tr key={a.assessment_id}>
+                  <td>{a.student_name || a.student_id}</td>
+                  <td>{a.module_name || a.module_id}</td>
+                  <td style={{ textTransform: 'capitalize' }}>{a.eval_type}</td>
+                  <td>{a.marks}</td>
+                  <td>{a.grade}</td>
+                  <td>{a.reviewed ? 'Published' : 'Pending Review'}</td>
+                  <td>
+                    {!a.reviewed && (
+                      <button onClick={() => handleReview(a.assessment_id)} style={{ padding: '4px 10px' }}>
+                        Approve & Publish
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p style={{ marginBottom: '30px' }}>No marks have been entered for this course yet.</p>
+        )
       ) : (
-        <p style={{ marginBottom: '30px' }}>No pending marks loaded. Enter a Course ID and click Load.</p>
+        <p style={{ marginBottom: '30px', color: 'gray' }}>Select a course above to view its marks.</p>
       )}
 
-      <h3>My Course — Students & Attendance</h3>
-      <form onSubmit={loadCourseStudentsAndSessions} style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-        <input
-          value={attCourseId}
-          onChange={e => setAttCourseId(e.target.value)}
-          placeholder="Enter Course ID"
-          style={{ flex: 1, padding: '8px' }}
-          required
-        />
-        <button type="submit" style={{ padding: '8px 16px' }}>Load Students</button>
-      </form>
+      <h3>Students & Attendance</h3>
+      {!attCourseId && (
+        <p style={{ marginBottom: '20px', color: 'gray' }}>Select a course above to view its registered students.</p>
+      )}
 
       {students.length > 0 && (
         <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '20px' }}>
@@ -186,6 +177,10 @@ export default function CoordinatorDashboard() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {attCourseId && students.length === 0 && (
+        <p style={{ marginBottom: '20px', color: 'gray' }}>No students registered for this course yet.</p>
       )}
 
       {students.length > 0 && (
