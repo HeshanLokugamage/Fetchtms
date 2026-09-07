@@ -734,6 +734,27 @@ app.post('/users', authenticate(['admin']), async (req, res) => {
 
 // Diagnostic: shows which resource persons, coordinators are missing a linked login,
 // and which students/resource persons have no login vs which do.
+// Link an already-existing user account to a resource person (fixes accounts created before linking existed)
+app.patch('/users/:userId/link-resource-person', authenticate(['admin']), async (req, res) => {
+  const { userId } = req.params;
+  const { trainer_id } = req.body;
+
+  const { data: user } = await supabase.from('users').select('*').eq('user_id', userId).single();
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.role !== 'resource_person') return res.status(400).json({ error: 'This user is not a resource person account' });
+
+  const { data, error } = await supabase
+    .from('resource_persons')
+    .update({ user_id: userId })
+    .eq('trainer_id', trainer_id)
+    .select();
+
+  if (error) return res.status(500).json({ error: error.message });
+  if (!data || data.length === 0) return res.status(404).json({ error: 'Resource person not found' });
+
+  res.json({ message: 'Linked successfully', resourcePerson: data[0] });
+});
+
 app.get('/diagnostics/account-links', authenticate(['admin']), async (req, res) => {
   const { data: users } = await supabase.from('users').select('user_id, username, role');
   const { data: students } = await supabase.from('students').select('student_id, full_name, user_id');

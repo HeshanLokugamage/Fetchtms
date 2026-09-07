@@ -4,10 +4,12 @@ import { useNavigate } from 'react-router-dom';
 
 export default function ManageUsersPage() {
   const [users, setUsers] = useState([]);
+  const [resourcePersons, setResourcePersons] = useState([]);
   const [diagnostics, setDiagnostics] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [newPasswords, setNewPasswords] = useState({});
+  const [linkChoice, setLinkChoice] = useState({});
   const navigate = useNavigate();
 
   const getHeaders = () => {
@@ -21,13 +23,36 @@ export default function ManageUsersPage() {
       .catch(err => setError(err.response?.data?.error || 'Failed to load users'));
   };
 
+  const loadResourcePersons = () => {
+    axios.get('https://fetchtms.onrender.com/resource-persons', { headers: getHeaders() })
+      .then(res => setResourcePersons(res.data))
+      .catch(() => {});
+  };
+
   const loadDiagnostics = () => {
     axios.get('https://fetchtms.onrender.com/diagnostics/account-links', { headers: getHeaders() })
       .then(res => setDiagnostics(res.data))
       .catch(() => setDiagnostics(null));
   };
 
-  useEffect(() => { loadUsers(); loadDiagnostics(); }, []);
+  useEffect(() => { loadUsers(); loadResourcePersons(); loadDiagnostics(); }, []);
+
+  const handleLinkResourcePerson = async (userId) => {
+    setError(''); setMessage('');
+    const trainerId = linkChoice[userId];
+    if (!trainerId) {
+      setError('Select a resource person to link first');
+      return;
+    }
+    try {
+      await axios.patch(`https://fetchtms.onrender.com/users/${userId}/link-resource-person`,
+        { trainer_id: trainerId }, { headers: getHeaders() });
+      setMessage('Linked successfully');
+      loadDiagnostics();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to link');
+    }
+  };
 
   const handleReset = async (userId, username) => {
     setError(''); setMessage('');
@@ -69,10 +94,27 @@ export default function ManageUsersPage() {
           ) : (
             <>
               {diagnostics.resourcePersonUserAccountsUnlinked.length > 0 && (
-                <p style={{ color: '#c62828' }}>
-                  <strong>Resource person logins not linked to a profile</strong> (this causes "No resource person record linked" errors):{' '}
-                  {diagnostics.resourcePersonUserAccountsUnlinked.map(u => u.username).join(', ')}
-                </p>
+                <div style={{ marginBottom: '10px' }}>
+                  <p style={{ color: '#c62828', marginBottom: '6px' }}>
+                    <strong>Resource person logins not linked to a profile</strong> (this causes "No resource person record linked" errors):
+                  </p>
+                  {diagnostics.resourcePersonUserAccountsUnlinked.map(u => (
+                    <div key={u.user_id} style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '6px' }}>
+                      <span style={{ minWidth: '120px' }}>{u.username}</span>
+                      <select
+                        value={linkChoice[u.user_id] || ''}
+                        onChange={e => setLinkChoice(prev => ({ ...prev, [u.user_id]: e.target.value }))}
+                        style={{ padding: '6px', flex: 1 }}
+                      >
+                        <option value="">Select the matching resource person...</option>
+                        {resourcePersons.map(rp => (
+                          <option key={rp.trainer_id} value={rp.trainer_id}>{rp.name} (ID: {rp.trainer_id})</option>
+                        ))}
+                      </select>
+                      <button onClick={() => handleLinkResourcePerson(u.user_id)}>Link</button>
+                    </div>
+                  ))}
+                </div>
               )}
               {diagnostics.resourcePersonsWithoutLogin.length > 0 && (
                 <p style={{ color: '#f57c00' }}>
