@@ -816,6 +816,7 @@ app.get('/diagnostics/account-links', authenticate(['admin']), async (req, res) 
   const { data: resourcePersons } = await supabase.from('resource_persons').select('trainer_id, name, user_id');
   const { data: coordinatorAssignments } = await supabase.from('course_coordinators').select('coordinator_id');
   const { data: rpAssignments } = await supabase.from('course_resource_persons').select('trainer_id');
+  const { data: registrations } = await supabase.from('registrations').select('student_id');
 
   const coordinatorUserIds = [...new Set((coordinatorAssignments || []).map(c => c.coordinator_id))];
   const coordinatorsWithNoCourses = (users || [])
@@ -825,8 +826,13 @@ app.get('/diagnostics/account-links', authenticate(['admin']), async (req, res) 
   const resourcePersonsWithNoCourses = (resourcePersons || [])
     .filter(rp => !assignedTrainerIds.includes(rp.trainer_id));
 
+  const registeredStudentIds = [...new Set((registrations || []).map(r => r.student_id))];
+  const studentsWithNoCourse = (students || [])
+    .filter(s => !registeredStudentIds.includes(s.student_id));
+
   res.json({
     studentsWithoutLogin: (students || []).filter(s => !s.user_id).map(s => ({ student_id: s.student_id, full_name: s.full_name })),
+    studentsWithNoCourse: studentsWithNoCourse.map(s => ({ student_id: s.student_id, full_name: s.full_name })),
     resourcePersonsWithoutLogin: (resourcePersons || []).filter(rp => !rp.user_id).map(rp => ({ trainer_id: rp.trainer_id, name: rp.name })),
     resourcePersonUserAccountsUnlinked: (users || [])
       .filter(u => u.role === 'resource_person' && !(resourcePersons || []).some(rp => rp.user_id === u.user_id))

@@ -104,6 +104,7 @@ export default function ManageUsersPage() {
       {diagnostics ? (
         <div style={{ marginBottom: '20px' }}>
           {diagnostics.studentsWithoutLogin.length === 0 &&
+           diagnostics.studentsWithNoCourse.length === 0 &&
            diagnostics.resourcePersonsWithoutLogin.length === 0 &&
            diagnostics.resourcePersonUserAccountsUnlinked.length === 0 &&
            diagnostics.coordinatorsWithNoCourseAssigned.length === 0 &&
@@ -144,6 +145,15 @@ export default function ManageUsersPage() {
                 <p style={{ color: 'gray' }}>
                   <strong>Students with no login account</strong> ({diagnostics.studentsWithoutLogin.length}) — normal unless you need them to log in.
                 </p>
+              )}
+              {diagnostics.studentsWithNoCourse.length > 0 && (
+                <div style={{ marginBottom: '10px' }}>
+                  <p style={{ color: '#c62828', marginBottom: '6px' }}>
+                    <strong>Students not registered for any course</strong> ({diagnostics.studentsWithNoCourse.length}):{' '}
+                    {diagnostics.studentsWithNoCourse.map(s => s.full_name).join(', ')}
+                  </p>
+                  <button onClick={() => navigate('/admin/operations/register-course')}>Register Student for Course</button>
+                </div>
               )}
               {diagnostics.coordinatorsWithNoCourseAssigned.length > 0 && (
                 <p style={{ color: '#f57c00' }}>

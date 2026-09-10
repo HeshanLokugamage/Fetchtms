@@ -9,6 +9,7 @@ export default function OperationsHome() {
     { icon: '🔗', title: 'Assign Resource Person to Course', desc: 'Link a trainer to a course', path: '/admin/operations/assign-resource-person' },
     { icon: '📋', title: 'Register Student for Course', desc: 'Enroll a student and record the fee owed', path: '/admin/operations/register-course' },
     { icon: '👤', title: 'Create Resource Person', desc: 'Add a new trainer profile', path: '/admin/operations/create-resource-person' },
+    { icon: '👥', title: 'Resource Persons List', desc: 'View trainers, hours delivered, and outstanding pay', path: '/admin/operations/resource-persons' },
     { icon: '🔑', title: 'Create User Account', desc: 'Create a login for a student, trainer, or staff member', path: '/admin/operations/create-user' },
     { icon: '🔓', title: 'Manage Users / Reset Passwords', desc: 'View all accounts and reset anyone\u2019s password', path: '/admin/operations/manage-users' },
     { icon: '🧑‍🏫', title: 'Assign Coordinator to Course', desc: 'Set who reviews marks for a course', path: '/admin/operations/assign-coordinator' },
