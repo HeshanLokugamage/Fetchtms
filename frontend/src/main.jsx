@@ -13,7 +13,6 @@ import ImportStudentsPage from './pages/ImportStudentsPage.jsx'
 import CoursesPage from './pages/CoursesPage.jsx'
 import CourseDetailsPage from './pages/CourseDetailsPage.jsx'
 import OperationsHome from './pages/OperationsHome.jsx'
-import PaymentPage from './pages/PaymentPage.jsx'
 import CertificatePage from './pages/CertificatePage.jsx'
 import TranscriptPage from './pages/TranscriptPage.jsx'
 import AssignResourcePersonPage from './pages/AssignResourcePersonPage.jsx'
@@ -81,10 +80,6 @@ createRoot(document.getElementById('root')).render(
         <Route
           path="/admin/operations"
           element={<ProtectedRoute role="admin"><OperationsHome /></ProtectedRoute>}
-        />
-        <Route
-          path="/admin/operations/payment"
-          element={<ProtectedRoute role="admin"><PaymentPage /></ProtectedRoute>}
         />
         <Route
           path="/admin/operations/certificate"

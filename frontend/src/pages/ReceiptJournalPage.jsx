@@ -10,7 +10,7 @@ export default function ReceiptJournalPage() {
   const navigate = useNavigate();
 
   const [students, setStudents] = useState([]);
-  const [courses, setCourses] = useState([]);
+  const [studentCourses, setStudentCourses] = useState([]);
   const [paymentMethods, setPaymentMethods] = useState([]);
 
   const [entryDate, setEntryDate] = useState(todayISO());
@@ -18,6 +18,7 @@ export default function ReceiptJournalPage() {
   const [courseId, setCourseId] = useState('');
   const [amount, setAmount] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('');
+  const [chequeNumber, setChequeNumber] = useState('');
   const [description, setDescription] = useState('');
 
   const [overallOutstanding, setOverallOutstanding] = useState(null);
@@ -34,20 +35,20 @@ export default function ReceiptJournalPage() {
       .then(res => setStudents(res.data))
       .catch(() => {});
 
-    axios.get('https://fetchtms.onrender.com/courses', { headers: getHeaders() })
-      .then(res => setCourses(res.data))
-      .catch(() => {});
-
     axios.get('https://fetchtms.onrender.com/payment-methods', { headers: getHeaders() })
       .then(res => setPaymentMethods(res.data))
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (!studentId) { setOverallOutstanding(null); return; }
+    if (!studentId) { setOverallOutstanding(null); setStudentCourses([]); setCourseId(''); return; }
     axios.get(`https://fetchtms.onrender.com/payments/student/${studentId}`, { headers: getHeaders() })
       .then(res => setOverallOutstanding(res.data.outstanding))
       .catch(() => setOverallOutstanding(null));
+    axios.get(`https://fetchtms.onrender.com/registrations/student/${studentId}`, { headers: getHeaders() })
+      .then(res => setStudentCourses(res.data))
+      .catch(() => setStudentCourses([]));
+    setCourseId('');
   }, [studentId]);
 
   useEffect(() => {
@@ -73,12 +74,13 @@ export default function ReceiptJournalPage() {
         course_id: courseId,
         amount,
         payment_method_id: paymentMethodId,
+        cheque_number: chequeNumber,
         description
       }, { headers: getHeaders() });
       setMessage('Receipt recorded successfully and the student\u2019s course balance has been updated');
       setIssuedEntryId(res.data.entry.entry_id);
-      setStudentId(''); setCourseId(''); setAmount(''); setPaymentMethodId(''); setDescription(''); setEntryDate(todayISO());
-      setCourseBalance(null); setOverallOutstanding(null);
+      setStudentId(''); setCourseId(''); setAmount(''); setPaymentMethodId(''); setChequeNumber(''); setDescription(''); setEntryDate(todayISO());
+      setCourseBalance(null); setOverallOutstanding(null); setStudentCourses([]);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to record receipt');
     }
@@ -135,13 +137,20 @@ export default function ReceiptJournalPage() {
           )}
         </div>
         <div style={{ marginBottom: '10px' }}>
-          <label>Course</label><br />
-          <select value={courseId} onChange={e => setCourseId(e.target.value)} style={{ width: '100%', padding: '8px' }} required>
-            <option value="">Select Course</option>
-            {courses.map(c => (
-              <option key={c.course_id} value={c.course_id}>{c.code} — {c.name}</option>
+          <label>Course (only shows this student's registered courses)</label><br />
+          <select value={courseId} onChange={e => setCourseId(e.target.value)} style={{ width: '100%', padding: '8px' }} required disabled={!studentId}>
+            <option value="">{studentId ? 'Select Course' : 'Select a student first'}</option>
+            {studentCourses.map(c => (
+              <option key={c.course_id} value={c.course_id}>
+                {c.course_code ? `${c.course_code} — ${c.course_name}` : (c.course_name || c.course_id)}
+              </option>
             ))}
           </select>
+          {studentId && studentCourses.length === 0 && (
+            <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>
+              This student isn't registered for any course yet.
+            </p>
+          )}
           {courseBalance && (
             <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>
               This course — Fee: {courseBalance.fee}, Paid: {courseBalance.paid}, Balance: {courseBalance.balance}
@@ -154,12 +163,18 @@ export default function ReceiptJournalPage() {
             type="number"
             min="0.01"
             step="0.01"
-            max={courseBalance ? courseBalance.balance : undefined}
+            max={courseBalance && courseBalance.balance > 0 ? courseBalance.balance : undefined}
             value={amount}
             onChange={e => setAmount(e.target.value)}
             style={{ width: '100%', padding: '8px' }}
+            disabled={!!(courseBalance && courseBalance.balance <= 0)}
             required
           />
+          {courseBalance && courseBalance.balance <= 0 && (
+            <p style={{ fontSize: '13px', color: '#c62828', marginTop: '4px' }}>
+              This student has no outstanding balance for this course — no receipt is needed.
+            </p>
+          )}
         </div>
         <div style={{ marginBottom: '10px' }}>
           <label>Payment Method</label><br />
@@ -170,6 +185,12 @@ export default function ReceiptJournalPage() {
             ))}
           </select>
         </div>
+        {paymentMethods.find(m => String(m.method_id) === String(paymentMethodId))?.name?.toLowerCase().includes('cheque') && (
+          <div style={{ marginBottom: '10px' }}>
+            <label>Cheque Number</label><br />
+            <input value={chequeNumber} onChange={e => setChequeNumber(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+          </div>
+        )}
         <div style={{ marginBottom: '10px' }}>
           <label>Description (optional)</label><br />
           <input value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', padding: '8px' }} />

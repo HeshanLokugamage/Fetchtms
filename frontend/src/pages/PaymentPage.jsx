@@ -8,15 +8,15 @@ export default function PaymentPage() {
   const navigate = useNavigate();
 
   const [students, setStudents] = useState([]);
-  const [courses, setCourses] = useState([]);
+  const [studentCourses, setStudentCourses] = useState([]);
 
   const [studentSearch, setStudentSearch] = useState('');
-  const [courseSearch, setCourseSearch] = useState('');
   const [payStudentId, setPayStudentId] = useState('');
   const [payCourseId, setPayCourseId] = useState('');
   const [payAmount, setPayAmount] = useState('');
   const [payType, setPayType] = useState('debit');
   const [payStatus, setPayStatus] = useState('pending');
+  const [balance, setBalance] = useState(null);
 
   const getHeaders = () => {
     const token = localStorage.getItem('token');
@@ -27,9 +27,6 @@ export default function PaymentPage() {
     axios.get('https://fetchtms.onrender.com/students', { headers: getHeaders() })
       .then(res => setStudents(res.data))
       .catch(() => {});
-    axios.get('https://fetchtms.onrender.com/courses', { headers: getHeaders() })
-      .then(res => setCourses(res.data))
-      .catch(() => {});
   }, []);
 
   const studentMatches = studentSearch
@@ -39,18 +36,20 @@ export default function PaymentPage() {
       ).slice(0, 5)
     : [];
 
-  const courseMatches = courseSearch
-    ? courses.filter(c =>
-        String(c.course_id).includes(courseSearch) ||
-        c.name.toLowerCase().includes(courseSearch.toLowerCase()) ||
-        c.code.toLowerCase().includes(courseSearch.toLowerCase())
-      ).slice(0, 5)
-    : [];
-
   const selectedStudent = students.find(s => s.student_id === Number(payStudentId));
-  const selectedCourse = courses.find(c => c.course_id === Number(payCourseId));
+  const selectedCourse = studentCourses.find(c => c.course_id === Number(payCourseId));
 
-  const [balance, setBalance] = useState(null);
+  useEffect(() => {
+    if (payStudentId) {
+      axios.get(`https://fetchtms.onrender.com/registrations/student/${payStudentId}`, { headers: getHeaders() })
+        .then(res => setStudentCourses(res.data))
+        .catch(() => setStudentCourses([]));
+    } else {
+      setStudentCourses([]);
+    }
+    setPayCourseId('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payStudentId]);
 
   useEffect(() => {
     if (payStudentId && payCourseId) {
@@ -77,7 +76,7 @@ export default function PaymentPage() {
       }, { headers: getHeaders() });
       setMessage('Payment recorded successfully');
       setPayStudentId(''); setPayCourseId(''); setPayAmount(''); setPayType('debit'); setPayStatus('pending');
-      setStudentSearch(''); setCourseSearch(''); setBalance(null);
+      setStudentSearch(''); setBalance(null);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to record payment');
     }
@@ -122,30 +121,30 @@ export default function PaymentPage() {
           )}
         </div>
 
-        <div style={{ marginBottom: '10px', position: 'relative' }}>
-          <label>Course (search by ID, code, or name)</label><br />
-          <input
-            value={courseSearch}
-            onChange={e => { setCourseSearch(e.target.value); setPayCourseId(''); }}
+        <div style={{ marginBottom: '10px' }}>
+          <label>Course (only shows this student's registered courses)</label><br />
+          <select
+            value={payCourseId}
+            onChange={e => setPayCourseId(e.target.value)}
             style={{ width: '100%', padding: '8px' }}
-            placeholder="Type ID, code, or name..."
-          />
-          {courseMatches.length > 0 && (
-            <div style={{ border: '1px solid #ccc', borderRadius: '4px', marginTop: '2px' }}>
-              {courseMatches.map(c => (
-                <div
-                  key={c.course_id}
-                  onClick={() => { setPayCourseId(c.course_id); setCourseSearch(`${c.name} (${c.code})`); }}
-                  style={{ padding: '8px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
-                >
-                  {c.code} — {c.name} — ID: {c.course_id}
-                </div>
-              ))}
-            </div>
+            required
+            disabled={!payStudentId}
+          >
+            <option value="">{payStudentId ? 'Select Course' : 'Select a student first'}</option>
+            {studentCourses.map(c => (
+              <option key={c.course_id} value={c.course_id}>
+                {c.course_code ? `${c.course_code} — ${c.course_name}` : (c.course_name || c.course_id)}
+              </option>
+            ))}
+          </select>
+          {payStudentId && studentCourses.length === 0 && (
+            <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>
+              This student isn't registered for any course yet.
+            </p>
           )}
           {selectedCourse && (
             <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>
-              Selected: {selectedCourse.code} — {selectedCourse.name}, Status: {selectedCourse.status}
+              Selected: {selectedCourse.course_code} — {selectedCourse.course_name}
             </p>
           )}
         </div>
@@ -161,15 +160,21 @@ export default function PaymentPage() {
             type="number"
             min="0.01"
             step="0.01"
-            max={payType === 'credit' && balance ? balance.balance : undefined}
+            max={payType === 'credit' && balance && balance.balance > 0 ? balance.balance : undefined}
             value={payAmount}
             onChange={e => setPayAmount(e.target.value)}
             style={{ width: '100%', padding: '8px' }}
+            disabled={payType === 'credit' && !!balance && balance.balance <= 0}
             required
           />
-          {payType === 'credit' && balance && (
+          {payType === 'credit' && balance && balance.balance > 0 && (
             <p style={{ fontSize: '12px', color: 'gray', marginTop: '4px' }}>
               Maximum payable: {balance.balance}
+            </p>
+          )}
+          {payType === 'credit' && balance && balance.balance <= 0 && (
+            <p style={{ fontSize: '13px', color: '#c62828', marginTop: '4px' }}>
+              This student has no outstanding balance for this course — no payment is needed.
             </p>
           )}
         </div>

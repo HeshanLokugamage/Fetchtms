@@ -4,7 +4,6 @@ export default function OperationsHome() {
   const navigate = useNavigate();
 
   const items = [
-    { icon: '💰', title: 'Record Payment', desc: 'Log a student payment against a course', path: '/admin/operations/payment' },
     { icon: '🎓', title: 'Issue Certificate', desc: 'Generate a certificate of participation', path: '/admin/operations/certificate' },
     { icon: '📄', title: 'View / Download Transcript', desc: 'Module marks and grades per student', path: '/admin/operations/transcript' },
     { icon: '🔗', title: 'Assign Resource Person to Course', desc: 'Link a trainer to a course', path: '/admin/operations/assign-resource-person' },

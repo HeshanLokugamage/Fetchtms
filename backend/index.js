@@ -189,7 +189,7 @@ async function getAccountIdByCode(code) {
 }
 
 app.post('/journal/receipt', authenticate(['admin']), async (req, res) => {
-  const { entry_date, student_id, course_id, amount, payment_method_id, description } = req.body;
+  const { entry_date, student_id, course_id, amount, payment_method_id, description, cheque_number } = req.body;
 
   const numAmount = Number(amount);
   if (!numAmount || numAmount <= 0) {
@@ -226,6 +226,7 @@ app.post('/journal/receipt', authenticate(['admin']), async (req, res) => {
       description: description || 'Student payment receipt',
       entry_type: 'receipt',
       payment_method_id: payment_method_id || null,
+      cheque_number: cheque_number || null,
       created_by: req.user.userId,
       reversed: false
     }])
@@ -321,7 +322,7 @@ app.get('/journal/receipt/:entryId/pdf', authenticate(['admin']), async (req, re
 });
 
 app.post('/journal/payment', authenticate(['admin']), async (req, res) => {
-  const { entry_date, category, vendor_id, resource_person_id, staff_user_id, amount, payment_method_id, description } = req.body;
+  const { entry_date, category, vendor_id, resource_person_id, staff_user_id, amount, payment_method_id, description, cheque_number } = req.body;
 
   const categoryToCode = {
     'fixed_assets': '1500',
@@ -346,6 +347,8 @@ app.post('/journal/payment', authenticate(['admin']), async (req, res) => {
       entry_date,
       description: description || `Payment - ${category}`,
       entry_type: 'payment',
+      payment_method_id: payment_method_id || null,
+      cheque_number: cheque_number || null,
       created_by: req.user.userId,
       reversed: false
     }])
@@ -755,6 +758,58 @@ app.patch('/users/:userId/link-resource-person', authenticate(['admin']), async 
   res.json({ message: 'Linked successfully', resourcePerson: data[0] });
 });
 
+// Diagnostic: finds registrations where a course fee applies but no matching debit was ever recorded,
+// which shows up as an incorrect "Outstanding Balance: 0" for a student who hasn't actually paid.
+app.get('/diagnostics/financial-integrity', authenticate(['admin']), async (req, res) => {
+  const { data: registrations } = await supabase.from('registrations').select('*');
+  const { data: courses } = await supabase.from('courses').select('course_id, code, name, fee');
+  const { data: students } = await supabase.from('students').select('student_id, full_name');
+  const { data: payments } = await supabase.from('payments').select('*');
+
+  const broken = (registrations || []).filter(r => {
+    const course = (courses || []).find(c => c.course_id === r.course_id);
+    if (!course || Number(course.fee) <= 0) return false;
+    const hasDebit = (payments || []).some(p => p.student_id === r.student_id && p.course_id === r.course_id && p.type === 'debit');
+    return !hasDebit;
+  }).map(r => {
+    const course = (courses || []).find(c => c.course_id === r.course_id);
+    const student = (students || []).find(s => s.student_id === r.student_id);
+    return {
+      registration_id: r.registration_id,
+      student_id: r.student_id,
+      student_name: student ? student.full_name : null,
+      course_id: r.course_id,
+      course_code: course ? course.code : null,
+      course_name: course ? course.name : null,
+      fee: course ? Number(course.fee) : 0
+    };
+  });
+
+  res.json(broken);
+});
+
+// Fixes the registrations found above by inserting the missing fee debit
+app.post('/diagnostics/financial-integrity/backfill', authenticate(['admin']), async (req, res) => {
+  const { data: registrations } = await supabase.from('registrations').select('*');
+  const { data: courses } = await supabase.from('courses').select('course_id, fee');
+  const { data: payments } = await supabase.from('payments').select('*');
+
+  let fixedCount = 0;
+  for (const r of (registrations || [])) {
+    const course = (courses || []).find(c => c.course_id === r.course_id);
+    if (!course || Number(course.fee) <= 0) continue;
+    const hasDebit = (payments || []).some(p => p.student_id === r.student_id && p.course_id === r.course_id && p.type === 'debit');
+    if (hasDebit) continue;
+
+    const { error } = await supabase
+      .from('payments')
+      .insert([{ student_id: r.student_id, course_id: r.course_id, amount: course.fee, type: 'debit', status: 'completed' }]);
+    if (!error) fixedCount++;
+  }
+
+  res.json({ message: `Fixed ${fixedCount} registration(s)`, fixedCount });
+});
+
 app.get('/diagnostics/account-links', authenticate(['admin']), async (req, res) => {
   const { data: users } = await supabase.from('users').select('user_id, username, role');
   const { data: students } = await supabase.from('students').select('student_id, full_name, user_id');
@@ -796,7 +851,40 @@ app.post('/resource-persons', authenticate(['admin']), async (req, res) => {
 app.get('/resource-persons', authenticate(['admin']), async (req, res) => {
   const { data, error } = await supabase.from('resource_persons').select('*');
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+
+  const { data: assignments } = await supabase.from('course_resource_persons').select('*');
+  const { data: sessions } = await supabase.from('course_sessions').select('*');
+  const { data: paymentLines } = await supabase
+    .from('journal_lines').select('*').not('resource_person_id', 'is', null);
+
+  const enriched = data.map(rp => {
+    const assignedCourseIds = (assignments || []).filter(a => a.trainer_id === rp.trainer_id).map(a => a.course_id);
+    const rpSessions = (sessions || []).filter(s => assignedCourseIds.includes(s.course_id));
+
+    const hoursDelivered = rpSessions.reduce((sum, s) => {
+      if (!s.start_time || !s.end_time) return sum;
+      const [sh, sm] = s.start_time.split(':').map(Number);
+      const [eh, em] = s.end_time.split(':').map(Number);
+      const hours = (eh * 60 + em - (sh * 60 + sm)) / 60;
+      return sum + (hours > 0 ? hours : 0);
+    }, 0);
+
+    const feePerHour = Number(rp.fee_per_hour) || 0;
+    const amountEarned = hoursDelivered * feePerHour;
+
+    const rpLines = (paymentLines || []).filter(l => l.resource_person_id === rp.trainer_id);
+    const amountPaid = rpLines.reduce((sum, l) => sum + Number(l.debit_amount), 0);
+
+    return {
+      ...rp,
+      hoursDelivered: Math.round(hoursDelivered * 100) / 100,
+      amountEarned,
+      amountPaid,
+      outstanding: Math.max(amountEarned - amountPaid, 0)
+    };
+  });
+
+  res.json(enriched);
 });
 
 // Bulk import students from Excel (admin only)
@@ -1321,10 +1409,16 @@ app.post('/registrations', authenticate(['admin', 'device']), async (req, res) =
   // Automatically record the course fee as an amount owed, so balance can be tracked from here on
   const { data: course } = await supabase.from('courses').select('fee').eq('course_id', course_id).single();
   const fee = Number(course?.fee) || 0;
+  let feeTrackingWarning = null;
   if (fee > 0) {
-    await supabase
+    const { error: debitError } = await supabase
       .from('payments')
       .insert([{ student_id, course_id, amount: fee, type: 'debit', status: 'completed' }]);
+
+    if (debitError) {
+      console.error('Failed to record fee debit for registration:', debitError.message);
+      feeTrackingWarning = 'Registration succeeded, but recording the fee owed failed — use Manage Users > Financial Data Check to fix this.';
+    }
 
     // Recognize the fee as revenue in the formal books (Dr Accounts Receivable, Cr Course Fee Income),
     // so Profit & Loss and Balance Sheet reports reflect real activity, not just the simple payments ledger.
@@ -1351,7 +1445,7 @@ app.post('/registrations', authenticate(['admin', 'device']), async (req, res) =
     }
   }
 
-  res.status(201).json({ message: 'Student registered for course', registration: data[0], fee });
+  res.status(201).json({ message: 'Student registered for course', registration: data[0], fee, warning: feeTrackingWarning });
 });
 
 // Invoice for a course registration
@@ -1856,10 +1950,12 @@ app.get('/transcript/:studentId/:courseId/pdf', authenticate(['admin', 'device',
 
 app.post('/certificates', authenticate(['admin']), async (req, res) => {
   const { student_id, course_id } = req.body;
+  const issues = [];
 
+  // Condition 1: every module must have a published, reviewed EXAM mark at or above pass level (50)
   const { data: modules } = await supabase
     .from('modules')
-    .select('module_id')
+    .select('module_id, module_name')
     .eq('course_id', course_id);
 
   const { data: assessments, error: assessError } = await supabase
@@ -1873,17 +1969,17 @@ app.post('/certificates', authenticate(['admin']), async (req, res) => {
   if (assessError) return res.status(500).json({ error: assessError.message });
 
   if (modules && modules.length > 0) {
-    const passingModuleIds = assessments.filter(a => Number(a.marks) >= 50).map(a => a.module_id);
-    const allCovered = modules.every(m => passingModuleIds.includes(m.module_id));
-    if (!allCovered) {
-      return res.status(400).json({ error: 'Student has not passed all modules with reviewed, published marks' });
-    }
-  } else {
-    if (!assessments || assessments.length === 0) {
-      return res.status(400).json({ error: 'No published passing assessment found for this student/course' });
+    for (const m of modules) {
+      const examAssessment = (assessments || []).find(a => a.module_id === m.module_id && a.eval_type === 'exam');
+      if (!examAssessment) {
+        issues.push(`No published exam mark found for module "${m.module_name}"`);
+      } else if (Number(examAssessment.marks) < 50) {
+        issues.push(`Exam mark for module "${m.module_name}" is ${examAssessment.marks}, below the pass level of 50`);
+      }
     }
   }
 
+  // Condition 2: fee must be fully paid (100%)
   const { data: payments, error: payError } = await supabase
     .from('payments')
     .select('*')
@@ -1894,9 +1990,27 @@ app.post('/certificates', authenticate(['admin']), async (req, res) => {
 
   const totalDebit = payments.filter(p => p.type === 'debit').reduce((sum, p) => sum + Number(p.amount), 0);
   const totalCredit = payments.filter(p => p.type === 'credit').reduce((sum, p) => sum + Number(p.amount), 0);
+  const balance = Math.max(totalDebit - totalCredit, 0);
 
-  if (totalDebit - totalCredit > 0) {
-    return res.status(400).json({ error: 'Student has outstanding balance; certificate cannot be issued yet' });
+  if (balance > 0) {
+    issues.push(`Outstanding balance of ${balance} must be fully paid before a certificate can be issued`);
+  }
+
+  // Condition 3: attendance must be at least 80% of scheduled sessions for this course
+  const { data: sessions } = await supabase.from('course_sessions').select('session_id').eq('course_id', course_id);
+  const sessionIds = (sessions || []).map(s => s.session_id);
+  if (sessionIds.length > 0) {
+    const { data: attendanceRecords } = await supabase
+      .from('attendance').select('*').eq('student_id', student_id).in('session_id', sessionIds);
+    const presentCount = (attendanceRecords || []).filter(a => a.status === 'present').length;
+    const attendancePercent = (presentCount / sessionIds.length) * 100;
+    if (attendancePercent < 80) {
+      issues.push(`Attendance is ${attendancePercent.toFixed(1)}% (${presentCount} of ${sessionIds.length} sessions), below the required 80%`);
+    }
+  }
+
+  if (issues.length > 0) {
+    return res.status(400).json({ error: `Certificate cannot be issued: ${issues.join('; ')}` });
   }
 
   const today = new Date();

@@ -113,7 +113,13 @@ export default function CoordinatorDashboard() {
       {myCourses.length > 0 ? (
         <div className="btn-row" style={{ marginBottom: '20px' }}>
           {myCourses.map(c => (
-            <button key={c.course_id} onClick={() => selectCourse(c.course_id)}>
+            <button
+              key={c.course_id}
+              onClick={() => selectCourse(c.course_id)}
+              style={String(c.course_id) === String(courseId) ? {
+                background: '#2e7d32', color: '#fff', borderColor: '#2e7d32', fontWeight: 'bold'
+              } : undefined}
+            >
               {c.course_code ? `${c.course_code} — ${c.course_name}` : `Course ${c.course_id}`}
             </button>
           ))}

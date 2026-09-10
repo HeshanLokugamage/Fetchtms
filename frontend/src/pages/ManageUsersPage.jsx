@@ -6,6 +6,7 @@ export default function ManageUsersPage() {
   const [users, setUsers] = useState([]);
   const [resourcePersons, setResourcePersons] = useState([]);
   const [diagnostics, setDiagnostics] = useState(null);
+  const [financialIssues, setFinancialIssues] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [newPasswords, setNewPasswords] = useState({});
@@ -35,7 +36,24 @@ export default function ManageUsersPage() {
       .catch(() => setDiagnostics(null));
   };
 
-  useEffect(() => { loadUsers(); loadResourcePersons(); loadDiagnostics(); }, []);
+  const loadFinancialIssues = () => {
+    axios.get('https://fetchtms.onrender.com/diagnostics/financial-integrity', { headers: getHeaders() })
+      .then(res => setFinancialIssues(res.data))
+      .catch(() => setFinancialIssues(null));
+  };
+
+  useEffect(() => { loadUsers(); loadResourcePersons(); loadDiagnostics(); loadFinancialIssues(); }, []);
+
+  const handleBackfillFinancial = async () => {
+    setError(''); setMessage('');
+    try {
+      const res = await axios.post('https://fetchtms.onrender.com/diagnostics/financial-integrity/backfill', {}, { headers: getHeaders() });
+      setMessage(res.data.message);
+      loadFinancialIssues();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to fix financial records');
+    }
+  };
 
   const handleLinkResourcePerson = async (userId) => {
     setError(''); setMessage('');
@@ -143,6 +161,32 @@ export default function ManageUsersPage() {
           )}
         </div>
       ) : <p style={{ color: 'gray', marginBottom: '20px' }}>Loading account check...</p>}
+
+      <h3>Financial Data Check</h3>
+      {financialIssues ? (
+        financialIssues.length === 0 ? (
+          <p style={{ color: '#2e7d32', marginBottom: '20px' }}>No issues found — every registration with a fee has a matching balance record.</p>
+        ) : (
+          <div style={{ marginBottom: '20px' }}>
+            <p style={{ color: '#c62828' }}>
+              <strong>{financialIssues.length} registration(s) show an incorrect balance</strong> (fee owed was never recorded, so the outstanding balance shows as 0 instead of the real amount):
+            </p>
+            <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '10px' }}>
+              <thead><tr><th>Student</th><th>Course</th><th>Fee</th></tr></thead>
+              <tbody>
+                {financialIssues.map(f => (
+                  <tr key={f.registration_id}>
+                    <td>{f.student_name}</td>
+                    <td>{f.course_code} — {f.course_name}</td>
+                    <td>{f.fee}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <button onClick={handleBackfillFinancial}>Fix All Automatically</button>
+          </div>
+        )
+      ) : <p style={{ color: 'gray', marginBottom: '20px' }}>Loading financial check...</p>}
 
       <h3>All User Accounts</h3>
 

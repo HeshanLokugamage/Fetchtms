@@ -127,25 +127,34 @@ const attendancePlan = [
 // fully paid + passed (certificate-eligible), passed but NOT fully paid (blocked by balance),
 // and not yet graded (In Progress), so every state in the system is demonstrated.
 const assessmentPlan = [
-  // TR-CHS101 — Kavindu and Nimesha both fully paid + passing => certificate-eligible
+  // TR-CHS101 — Kavindu and Nimesha both fully paid + passing (incl. exam per module) => certificate-eligible
   { student: 'Kavindu Wickramasinghe', course: 'TR-CHS101', module: 'Chemical Hazard Identification', eval_type: 'assignment', marks: 72 },
+  { student: 'Kavindu Wickramasinghe', course: 'TR-CHS101', module: 'Chemical Hazard Identification', eval_type: 'exam', marks: 70 },
   { student: 'Kavindu Wickramasinghe', course: 'TR-CHS101', module: 'Risk Mitigation Techniques', eval_type: 'exam', marks: 65 },
   { student: 'Nimesha Kodithuwakku', course: 'TR-CHS101', module: 'Chemical Hazard Identification', eval_type: 'assignment', marks: 58 },
+  { student: 'Nimesha Kodithuwakku', course: 'TR-CHS101', module: 'Chemical Hazard Identification', eval_type: 'exam', marks: 55 },
   { student: 'Nimesha Kodithuwakku', course: 'TR-CHS101', module: 'Risk Mitigation Techniques', eval_type: 'exam', marks: 61 },
-  // TR-PMF201 — Ravindu fully paid + passing => certificate-eligible; Sanduni graded but only partly paid => blocked by balance
+  // TR-PMF201 — Ravindu fully paid + passing marks, but his attendance is only 50% (1 of 2 sessions) =>
+  // deliberately kept as a demo of the attendance condition blocking a certificate on its own.
+  // Sanduni is graded but only partly paid => blocked by balance.
   { student: 'Ravindu Gunasekara', course: 'TR-PMF201', module: 'Project Planning & Scheduling', eval_type: 'assignment', marks: 77 },
+  { student: 'Ravindu Gunasekara', course: 'TR-PMF201', module: 'Project Planning & Scheduling', eval_type: 'exam', marks: 75 },
   { student: 'Ravindu Gunasekara', course: 'TR-PMF201', module: 'Risk & Stakeholder Management', eval_type: 'exam', marks: 80 },
   { student: 'Sanduni Rajapaksha', course: 'TR-PMF201', module: 'Project Planning & Scheduling', eval_type: 'assignment', marks: 66 },
   { student: 'Sanduni Rajapaksha', course: 'TR-PMF201', module: 'Risk & Stakeholder Management', eval_type: 'exam', marks: 70 },
-  // TR-IHS110 — Malith fully paid + passing => certificate-eligible; Tharindu passing but unpaid => blocked by balance
+  // TR-IHS110 — Malith fully paid + passing (incl. exam per module) => certificate-eligible; Tharindu passing but unpaid => blocked by balance
   { student: 'Malith Senanayake', course: 'TR-IHS110', module: 'Workplace Hazard Assessment', eval_type: 'assignment', marks: 69 },
+  { student: 'Malith Senanayake', course: 'TR-IHS110', module: 'Workplace Hazard Assessment', eval_type: 'exam', marks: 68 },
   { student: 'Malith Senanayake', course: 'TR-IHS110', module: 'Emergency Response Procedures', eval_type: 'exam', marks: 73 },
   { student: 'Tharindu Bandara', course: 'TR-IHS110', module: 'Workplace Hazard Assessment', eval_type: 'assignment', marks: 60 },
   { student: 'Tharindu Bandara', course: 'TR-IHS110', module: 'Emergency Response Procedures', eval_type: 'exam', marks: 64 },
-  // TR-COM101 demo course — both fully paid + passing => certificate-eligible
+  // TR-COM101 demo course — Yasodha fully paid + passing + full attendance => certificate-eligible.
+  // Chanaka is fully paid and passing, but only attended 1 of 2 sessions (50%) => another attendance-only demo block.
   { student: 'Yasodha Perumal', course: 'TR-COM101', module: 'Verbal & Written Communication', eval_type: 'assignment', marks: 68 },
+  { student: 'Yasodha Perumal', course: 'TR-COM101', module: 'Verbal & Written Communication', eval_type: 'exam', marks: 70 },
   { student: 'Yasodha Perumal', course: 'TR-COM101', module: 'Presentation Skills', eval_type: 'exam', marks: 74 },
   { student: 'Chanaka Wijesuriya', course: 'TR-COM101', module: 'Verbal & Written Communication', eval_type: 'assignment', marks: 55 },
+  { student: 'Chanaka Wijesuriya', course: 'TR-COM101', module: 'Verbal & Written Communication', eval_type: 'exam', marks: 60 },
   { student: 'Chanaka Wijesuriya', course: 'TR-COM101', module: 'Presentation Skills', eval_type: 'exam', marks: 81 }
   // Isuru (TR-FAC105) and Dulani (TR-ITF100) are deliberately left ungraded so those
   // courses show "In Progress" in Course Details, covering that state too.
@@ -201,6 +210,64 @@ async function seed() {
     const { error } = await supabase.from('chart_of_accounts').insert([{ code: '4000', name: 'Course Fee Income', type: 'Income' }]);
     if (error) throw error;
     console.log('  Added Course Fee Income (4000).');
+  } else {
+    console.log('  Already existed.');
+  }
+
+  console.log('Checking/seeding opening balance accounts (Cash at Bank, Bank Deposit, Owner\'s Capital)...');
+  const openingAccountsPlan = [
+    { code: '1010', name: 'Cash at Bank', type: 'Asset' },
+    { code: '1020', name: 'Bank Deposit', type: 'Asset' },
+    { code: '3000', name: 'Owner\'s Capital', type: 'Equity' }
+  ];
+  for (const acc of openingAccountsPlan) {
+    const { data: existing } = await supabase.from('chart_of_accounts').select('*').eq('code', acc.code);
+    if (!existing || existing.length === 0) {
+      const { error } = await supabase.from('chart_of_accounts').insert([acc]);
+      if (error) throw error;
+      console.log(`  Added ${acc.name} (${acc.code}).`);
+    }
+  }
+
+  console.log('Checking/seeding opening balance journal entry...');
+  const OPENING_BALANCE_DESCRIPTION = 'Opening Balance - Company Capital Investment';
+  const { data: existingOpeningEntry } = await supabase
+    .from('journal_entries').select('*').eq('description', OPENING_BALANCE_DESCRIPTION);
+  if (!existingOpeningEntry || existingOpeningEntry.length === 0) {
+    const { data: adminForOpening } = await supabase.from('users').select('user_id').eq('role', 'admin').limit(1);
+    const adminId = adminForOpening && adminForOpening.length > 0 ? adminForOpening[0].user_id : null;
+
+    const cashId = await getAccountIdByCode('1000');
+    const cashAtBankId = await getAccountIdByCode('1010');
+    const bankDepositId = await getAccountIdByCode('1020');
+    const fixedAssetsId = await getAccountIdByCode('1500');
+    const capitalId = await getAccountIdByCode('3000');
+
+    if (cashId && cashAtBankId && bankDepositId && fixedAssetsId && capitalId && adminId) {
+      const { data: openingEntry, error: openingError } = await supabase
+        .from('journal_entries')
+        .insert([{
+          entry_date: '2026-01-01',
+          description: OPENING_BALANCE_DESCRIPTION,
+          entry_type: 'opening_balance',
+          created_by: adminId,
+          reversed: false
+        }])
+        .select().single();
+      if (openingError) throw openingError;
+
+      const { error: openingLinesError } = await supabase.from('journal_lines').insert([
+        { entry_id: openingEntry.entry_id, account_id: cashId, debit_amount: 50000, credit_amount: 0 },
+        { entry_id: openingEntry.entry_id, account_id: cashAtBankId, debit_amount: 1000000, credit_amount: 0 },
+        { entry_id: openingEntry.entry_id, account_id: bankDepositId, debit_amount: 5000000, credit_amount: 0 },
+        { entry_id: openingEntry.entry_id, account_id: fixedAssetsId, debit_amount: 3000000, credit_amount: 0 },
+        { entry_id: openingEntry.entry_id, account_id: capitalId, debit_amount: 0, credit_amount: 9050000 }
+      ]);
+      if (openingLinesError) throw openingLinesError;
+      console.log('  Opening balance entry created: Cash 50,000 + Cash at Bank 1,000,000 + Bank Deposit 5,000,000 + Fixed Assets (Land & Building) 3,000,000 = Owner\'s Capital 9,050,000.');
+    } else {
+      console.log('  Skipped: required accounts or an admin user were not found.');
+    }
   } else {
     console.log('  Already existed.');
   }
@@ -518,10 +585,12 @@ async function seed() {
   }
   console.log(`  ${expenseCount} new expense entries added.`);
 
-  console.log('Checking/issuing certificates for students who now qualify...');
+  console.log('Checking/issuing certificates for students who now qualify (exam pass + full payment + 80% attendance)...');
   const { data: freshPayments } = await supabase.from('payments').select('*');
   const { data: freshAssessments } = await supabase.from('assessments').select('*');
   const { data: existingCerts } = await supabase.from('certificates').select('*');
+  const { data: allSessionsForCert } = await supabase.from('course_sessions').select('*');
+  const { data: allAttendanceForCert } = await supabase.from('attendance').select('*');
   let certCount = 0;
 
   for (const r of registrationPlan) {
@@ -535,17 +604,33 @@ async function seed() {
     const coursePayments = freshPayments.filter(p => p.student_id === student.student_id && p.course_id === course.course_id);
     const debit = coursePayments.filter(p => p.type === 'debit').reduce((sum, p) => sum + Number(p.amount), 0);
     const credit = coursePayments.filter(p => p.type === 'credit').reduce((sum, p) => sum + Number(p.amount), 0);
-    if (debit - credit > 0) continue; // still owes money
+    if (debit - credit > 0) {
+      console.log(`    Skipped ${student.full_name} / ${course.code}: outstanding balance`);
+      continue;
+    }
 
     const courseModules = modulesFresh.filter(m => m.course_id === course.course_id);
     if (courseModules.length === 0) continue; // nothing to grade, be conservative and skip
 
     const studentAssessments = freshAssessments.filter(a => a.student_id === student.student_id && a.course_id === course.course_id && a.published && a.reviewed);
-    const allPassed = courseModules.every(m => {
-      const a = studentAssessments.find(a => a.module_id === m.module_id);
-      return a && Number(a.marks) >= 50;
+    const allExamsPassed = courseModules.every(m => {
+      const examAssessment = studentAssessments.find(a => a.module_id === m.module_id && a.eval_type === 'exam');
+      return examAssessment && Number(examAssessment.marks) >= 50;
     });
-    if (!allPassed) continue;
+    if (!allExamsPassed) {
+      console.log(`    Skipped ${student.full_name} / ${course.code}: missing or failing exam mark for one or more modules`);
+      continue;
+    }
+
+    const courseSessionIds = allSessionsForCert.filter(s => s.course_id === course.course_id).map(s => s.session_id);
+    if (courseSessionIds.length > 0) {
+      const presentCount = allAttendanceForCert.filter(a => a.student_id === student.student_id && courseSessionIds.includes(a.session_id) && a.status === 'present').length;
+      const attendancePercent = (presentCount / courseSessionIds.length) * 100;
+      if (attendancePercent < 80) {
+        console.log(`    Skipped ${student.full_name} / ${course.code}: attendance is ${attendancePercent.toFixed(0)}% (needs 80%)`);
+        continue;
+      }
+    }
 
     const today = new Date();
     const datePart = today.toISOString().split('T')[0].replace(/-/g, '');
@@ -568,9 +653,12 @@ async function seed() {
   console.log('  Login accounts (temporary passwords, changeable on first login):');
   loginAccountsPlan.forEach(acc => console.log(`    ${acc.username} / ${acc.password}  (${acc.fullNameForLog}, ${acc.role})`));
   console.log('  Coordinators cover all 7 courses: Sanjeewa -> TR-CHS101, TR-PMF201, TR-IHS110, TR-FAC105; Thilini -> TR-ITF100, TR-LPM220, TR-COM101.');
-  console.log('  Certificate-eligible / already-issued students: Kavindu Wickramasinghe (TR-CHS101), Nimesha Kodithuwakku (TR-CHS101),');
-  console.log('  Ravindu Gunasekara (TR-PMF201), Malith Senanayake (TR-IHS110), Yasodha Perumal & Chanaka Wijesuriya (TR-COM101).');
-  console.log('  Sanduni Rajapaksha and Tharindu Bandara are graded and passing but still owe a balance — good for testing the payment-gate on certificates.');
+  console.log('  Certificate rule: every module needs a published, reviewed EXAM mark >= 50, the fee must be 100% paid, and attendance must be >= 80%.');
+  console.log('  Certificate-eligible / already-issued: Kavindu Wickramasinghe (TR-CHS101), Nimesha Kodithuwakku (TR-CHS101),');
+  console.log('  Malith Senanayake (TR-IHS110), Yasodha Perumal (TR-COM101) — all meet exam marks, full payment, and 80%+ attendance.');
+  console.log('  Ravindu Gunasekara (TR-PMF201) and Chanaka Wijesuriya (TR-COM101) are fully paid and passing but only attended 50% of sessions —');
+  console.log('  good for testing that the attendance condition alone can block a certificate, with the specific reason shown to the admin.');
+  console.log('  Sanduni Rajapaksha and Tharindu Bandara are graded and passing but still owe a balance — good for testing the payment-gate.');
   console.log('  Isuru Madushanka and Dulani Weerasinghe are registered but not yet graded — good for testing "In Progress" status.');
 }
 

@@ -19,6 +19,7 @@ export default function PaymentJournalPage() {
   const [staffUserId, setStaffUserId] = useState('');
   const [amount, setAmount] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('');
+  const [chequeNumber, setChequeNumber] = useState('');
   const [description, setDescription] = useState('');
 
   const getHeaders = () => {
@@ -59,11 +60,12 @@ export default function PaymentJournalPage() {
         staff_user_id: isStaffCategory ? staffUserId : null,
         amount,
         payment_method_id: paymentMethodId,
+        cheque_number: chequeNumber,
         description
       }, { headers: getHeaders() });
       setMessage('Payment recorded successfully');
       setEntryDate(''); setCategory(''); setVendorId(''); setResourcePersonId(''); setStaffUserId('');
-      setAmount(''); setPaymentMethodId(''); setDescription('');
+      setAmount(''); setPaymentMethodId(''); setChequeNumber(''); setDescription('');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to record payment');
     }
@@ -151,6 +153,12 @@ export default function PaymentJournalPage() {
             ))}
           </select>
         </div>
+        {paymentMethods.find(m => String(m.method_id) === String(paymentMethodId))?.name?.toLowerCase().includes('cheque') && (
+          <div style={{ marginBottom: '10px' }}>
+            <label>Cheque Number</label><br />
+            <input value={chequeNumber} onChange={e => setChequeNumber(e.target.value)} style={{ width: '100%', padding: '8px' }} required />
+          </div>
+        )}
         <div style={{ marginBottom: '10px' }}>
           <label>Description (optional)</label><br />
           <input value={description} onChange={e => setDescription(e.target.value)} style={{ width: '100%', padding: '8px' }} />
