@@ -45,7 +45,7 @@ export default function ResourcePersonsListPage() {
       <table border="1" cellPadding="8" style={{ borderCollapse: 'collapse', width: '100%' }}>
         <thead>
           <tr>
-            <th>ID</th><th>Name</th><th>Title</th><th>Organization</th><th>Subjects</th><th>Fee/Hour</th>
+            <th>ID</th><th>Name</th><th>Title</th><th>Organization</th><th>Course(s)</th><th>Fee/Hour</th>
             <th>Hours Delivered</th><th>Amount Earned</th><th>Amount Paid</th><th>Outstanding</th>
           </tr>
         </thead>

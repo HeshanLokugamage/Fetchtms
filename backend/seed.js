@@ -23,7 +23,13 @@ const resourcePersonsData = [
   { name: 'Nadeeka Silva', title: 'MBA', organization: 'SLIIT', qualifications: 'MBA, BSc (Hons) Management', available_dates: 'Weekends', subjects: 'Project Management, Leadership', fee_per_hour: 4000 },
   { name: 'Kasun Perera', title: 'Chartered Engineer', organization: 'IESL', qualifications: 'BSc Eng (Hons), C.Eng, MIESL', available_dates: 'Mon, Wed, Fri', subjects: 'Industrial Safety, HSE', fee_per_hour: 4500 },
   { name: 'Chamari Fernando', title: 'ACMA, CGMA', organization: 'Fetch Consultants (Pvt) Ltd', qualifications: 'ACMA, CGMA', available_dates: 'Tue, Thu', subjects: 'Financial Accounting, Bookkeeping', fee_per_hour: 3500 },
-  { name: 'Ashan Jayasuriya', title: 'Certified IT Trainer', organization: 'ICTA', qualifications: 'MSc IT, MCSE', available_dates: 'Weekdays', subjects: 'IT Fundamentals, Digital Literacy', fee_per_hour: 4000 }
+  { name: 'Ashan Jayasuriya', title: 'Certified IT Trainer', organization: 'ICTA', qualifications: 'MSc IT, MCSE', available_dates: 'Weekdays', subjects: 'IT Fundamentals, Digital Literacy', fee_per_hour: 4000 },
+  // NOTE: these three already exist in your database (created manually), matched here by
+  // exact name so this script recognizes them instead of creating duplicates — it only
+  // assigns them a course below, it does not re-create or alter their profile details.
+  { name: 'Dr Ruwan Ranasinghe', title: '', organization: '', qualifications: '', available_dates: '', subjects: '', fee_per_hour: 0 },
+  { name: 'Prabhashi Perera', title: '', organization: '', qualifications: '', available_dates: '', subjects: '', fee_per_hour: 0 },
+  { name: 'Test Trainer 2', title: '', organization: '', qualifications: '', available_dates: '', subjects: '', fee_per_hour: 0 }
 ];
 
 // NOTE: codes prefixed with "TR-" to avoid clashing with any course codes
@@ -57,7 +63,11 @@ const courseResourcePersonAssignments = [
   { courseCode: 'TR-FAC105', rpName: 'Chamari Fernando' },
   { courseCode: 'TR-ITF100', rpName: 'Ashan Jayasuriya' },
   { courseCode: 'TR-LPM220', rpName: 'Nadeeka Silva' },
-  { courseCode: 'TR-COM101', rpName: 'Nadeeka Silva' }
+  { courseCode: 'TR-COM101', rpName: 'Nadeeka Silva' },
+  // Newly assigned so these existing profiles are no longer flagged as "no course assigned"
+  { courseCode: 'TR-CHS101', rpName: 'Dr Ruwan Ranasinghe' },
+  { courseCode: 'TR-LPM220', rpName: 'Prabhashi Perera' },
+  { courseCode: 'TR-ITF100', rpName: 'Test Trainer 2' }
 ];
 
 const studentsData = [
@@ -187,7 +197,15 @@ const loginAccountsPlan = [
   { username: 'nadeeka', password: 'Nadeeka123', role: 'resource_person', fullNameForLog: 'Nadeeka Silva', linkResourcePersonName: 'Nadeeka Silva' },
   { username: 'ruwan', password: 'Ruwan123', role: 'resource_person', fullNameForLog: 'Dr. Ruwan K Ranasinghe', linkResourcePersonName: 'Dr. Ruwan K Ranasinghe' },
   { username: 'priyantha', password: 'Priyantha123', role: 'staff', fullNameForLog: 'Priyantha Wickramasinghe (Office Administrator)' },
-  { username: 'yasodha', password: 'Yasodha123', role: 'student', fullNameForLog: 'Yasodha Perumal', linkStudentEmail: 'yasodha.p@example.com' }
+  { username: 'yasodha', password: 'Yasodha123', role: 'student', fullNameForLog: 'Yasodha Perumal', linkStudentEmail: 'yasodha.p@example.com' },
+  // New this round: logins for two resource persons who already had a course but no way to log in
+  { username: 'kasun', password: 'Kasun123', role: 'resource_person', fullNameForLog: 'Kasun Perera', linkResourcePersonName: 'Kasun Perera' },
+  { username: 'chamari', password: 'Chamari123', role: 'resource_person', fullNameForLog: 'Chamari Fernando', linkResourcePersonName: 'Chamari Fernando' },
+  // These two accounts already exist in your database (created manually) — matched here by
+  // exact username so this script only assigns them a course, without recreating the account
+  // or resetting their existing password.
+  { username: 'Yehali', password: null, role: 'coordinator', fullNameForLog: 'Yehali (existing account)', assignCourseCodes: ['TR-PMF201'] },
+  { username: 'Coordinator', password: null, role: 'coordinator', fullNameForLog: 'Coordinator (existing account)', assignCourseCodes: ['TR-IHS110'] }
 ];
 
 function computeGrade(marks) {
@@ -507,6 +525,10 @@ async function seed() {
   const createdUsersByUsername = {};
   for (const acc of loginAccountsPlan) {
     let user = existingUsers.find(u => u.username === acc.username);
+    if (!user && acc.password === null) {
+      console.log(`  Skipped ${acc.username}: no account with this exact username was found, and no password was given to create one. Check the username casing or create it manually via Create User Account.`);
+      continue;
+    }
     if (!user) {
       const password_hash = await bcrypt.hash(acc.password, 10);
       const { data: newUser, error } = await supabase
@@ -545,7 +567,42 @@ async function seed() {
     }
   }
   console.log(`  ${usersInserted} new login accounts added.`);
-  loginAccountsPlan.forEach(acc => console.log(`    ${acc.username} / ${acc.password}  (${acc.fullNameForLog}, role: ${acc.role})`));
+  loginAccountsPlan.forEach(acc => console.log(acc.password ? `    ${acc.username} / ${acc.password}  (${acc.fullNameForLog}, role: ${acc.role})` : `    ${acc.username} (existing account, password unchanged)  (${acc.fullNameForLog}, role: ${acc.role})`));
+
+  console.log('Checking/seeding logins for every student who does not have one yet (password: 12345 for all)...');
+  const { data: allStudentsNow } = await supabase.from('students').select('*');
+  const { data: allUsersNow } = await supabase.from('users').select('username');
+  const takenUsernames = new Set((allUsersNow || []).map(u => u.username.toLowerCase()));
+  const studentPassword = '12345';
+  const studentPasswordHash = await bcrypt.hash(studentPassword, 10);
+  const bulkStudentLogins = [];
+
+  for (const s of (allStudentsNow || [])) {
+    if (s.user_id) continue; // already has a login
+
+    let base = (s.full_name || 'student').split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '') || 'student';
+    let candidate = base;
+    let suffix = 1;
+    while (takenUsernames.has(candidate)) {
+      suffix++;
+      candidate = `${base}${suffix}`;
+    }
+    takenUsernames.add(candidate);
+
+    const { data: newUser, error: newUserError } = await supabase
+      .from('users')
+      .insert([{ username: candidate, password_hash: studentPasswordHash, role: 'student', force_password_reset: true, is_active: true }])
+      .select().single();
+    if (newUserError) throw newUserError;
+
+    const { error: linkError } = await supabase.from('students').update({ user_id: newUser.user_id }).eq('student_id', s.student_id);
+    if (linkError) throw linkError;
+
+    bulkStudentLogins.push({ username: candidate, full_name: s.full_name });
+  }
+
+  console.log(`  ${bulkStudentLogins.length} new student logins created (password "${studentPassword}" for all, forced to change on first login).`);
+  bulkStudentLogins.forEach(l => console.log(`    ${l.username} / ${studentPassword}  (${l.full_name})`));
 
   console.log('Checking/seeding Payment Journal expense entries...');
   const categoryToCode = { fixed_assets: '1500', other_purchases: '5100', resource_person_payment: '5000', staff_payment: '5200', other_expenses: '5300' };
@@ -651,7 +708,7 @@ async function seed() {
 
   console.log('\nSeed complete! Summary:');
   console.log('  Login accounts (temporary passwords, changeable on first login):');
-  loginAccountsPlan.forEach(acc => console.log(`    ${acc.username} / ${acc.password}  (${acc.fullNameForLog}, ${acc.role})`));
+  loginAccountsPlan.forEach(acc => console.log(acc.password ? `    ${acc.username} / ${acc.password}  (${acc.fullNameForLog}, ${acc.role})` : `    ${acc.username} (existing account, password unchanged)  (${acc.fullNameForLog}, ${acc.role})`));
   console.log('  Coordinators cover all 7 courses: Sanjeewa -> TR-CHS101, TR-PMF201, TR-IHS110, TR-FAC105; Thilini -> TR-ITF100, TR-LPM220, TR-COM101.');
   console.log('  Certificate rule: every module needs a published, reviewed EXAM mark >= 50, the fee must be 100% paid, and attendance must be >= 80%.');
   console.log('  Certificate-eligible / already-issued: Kavindu Wickramasinghe (TR-CHS101), Nimesha Kodithuwakku (TR-CHS101),');
