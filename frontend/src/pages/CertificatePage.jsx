@@ -8,10 +8,9 @@ export default function CertificatePage() {
   const navigate = useNavigate();
 
   const [students, setStudents] = useState([]);
-  const [courses, setCourses] = useState([]);
+  const [studentCourses, setStudentCourses] = useState([]);
 
   const [studentSearch, setStudentSearch] = useState('');
-  const [courseSearch, setCourseSearch] = useState('');
   const [certStudentId, setCertStudentId] = useState('');
   const [certCourseId, setCertCourseId] = useState('');
   const [issuedCode, setIssuedCode] = useState('');
@@ -25,10 +24,18 @@ export default function CertificatePage() {
     axios.get('https://fetchtms.onrender.com/students', { headers: getHeaders() })
       .then(res => setStudents(res.data))
       .catch(() => {});
-    axios.get('https://fetchtms.onrender.com/courses', { headers: getHeaders() })
-      .then(res => setCourses(res.data))
-      .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (certStudentId) {
+      axios.get(`https://fetchtms.onrender.com/registrations/student/${certStudentId}`, { headers: getHeaders() })
+        .then(res => setStudentCourses(res.data))
+        .catch(() => setStudentCourses([]));
+    } else {
+      setStudentCourses([]);
+    }
+    setCertCourseId('');
+  }, [certStudentId]);
 
   const studentMatches = studentSearch
     ? students.filter(s =>
@@ -37,16 +44,8 @@ export default function CertificatePage() {
       ).slice(0, 5)
     : [];
 
-  const courseMatches = courseSearch
-    ? courses.filter(c =>
-        String(c.course_id).includes(courseSearch) ||
-        c.name.toLowerCase().includes(courseSearch.toLowerCase()) ||
-        c.code.toLowerCase().includes(courseSearch.toLowerCase())
-      ).slice(0, 5)
-    : [];
-
   const selectedStudent = students.find(s => s.student_id === Number(certStudentId));
-  const selectedCourse = courses.find(c => c.course_id === Number(certCourseId));
+  const selectedCourse = studentCourses.find(c => c.course_id === Number(certCourseId));
 
   const handleIssueCertificate = async (e) => {
     e.preventDefault();
@@ -58,7 +57,7 @@ export default function CertificatePage() {
       setMessage(`Certificate issued! Verification code: ${res.data.certificate.verification_code}`);
       setIssuedCode(res.data.certificate.verification_code);
       setCertStudentId(''); setCertCourseId('');
-      setStudentSearch(''); setCourseSearch('');
+      setStudentSearch(''); setStudentCourses([]);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to issue certificate');
     }
@@ -115,30 +114,30 @@ export default function CertificatePage() {
           )}
         </div>
 
-        <div style={{ marginBottom: '10px', position: 'relative' }}>
-          <label>Course (search by ID, code, or name)</label><br />
-          <input
-            value={courseSearch}
-            onChange={e => { setCourseSearch(e.target.value); setCertCourseId(''); }}
+        <div style={{ marginBottom: '10px' }}>
+          <label>Course (only shows this student's registered courses)</label><br />
+          <select
+            value={certCourseId}
+            onChange={e => setCertCourseId(e.target.value)}
             style={{ width: '100%', padding: '8px' }}
-            placeholder="Type ID, code, or name..."
-          />
-          {courseMatches.length > 0 && (
-            <div style={{ border: '1px solid #ccc', borderRadius: '4px', marginTop: '2px' }}>
-              {courseMatches.map(c => (
-                <div
-                  key={c.course_id}
-                  onClick={() => { setCertCourseId(c.course_id); setCourseSearch(`${c.name} (${c.code})`); }}
-                  style={{ padding: '8px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
-                >
-                  {c.code} — {c.name} — ID: {c.course_id}
-                </div>
-              ))}
-            </div>
+            required
+            disabled={!certStudentId}
+          >
+            <option value="">{certStudentId ? 'Select Course' : 'Select a student first'}</option>
+            {studentCourses.map(c => (
+              <option key={c.course_id} value={c.course_id}>
+                {c.course_code ? `${c.course_code} — ${c.course_name}` : (c.course_name || c.course_id)}
+              </option>
+            ))}
+          </select>
+          {certStudentId && studentCourses.length === 0 && (
+            <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>
+              This student isn't registered for any course yet.
+            </p>
           )}
           {selectedCourse && (
             <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>
-              Selected: {selectedCourse.code} — {selectedCourse.name}
+              Selected: {selectedCourse.course_code} — {selectedCourse.course_name}
             </p>
           )}
         </div>
