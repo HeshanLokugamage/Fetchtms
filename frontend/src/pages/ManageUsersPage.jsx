@@ -7,6 +7,7 @@ export default function ManageUsersPage() {
   const [resourcePersons, setResourcePersons] = useState([]);
   const [diagnostics, setDiagnostics] = useState(null);
   const [financialIssues, setFinancialIssues] = useState(null);
+  const [mismatchedAssessments, setMismatchedAssessments] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [newPasswords, setNewPasswords] = useState({});
@@ -42,7 +43,24 @@ export default function ManageUsersPage() {
       .catch(() => setFinancialIssues(null));
   };
 
-  useEffect(() => { loadUsers(); loadResourcePersons(); loadDiagnostics(); loadFinancialIssues(); }, []);
+  const loadMismatchedAssessments = () => {
+    axios.get('https://fetchtms.onrender.com/diagnostics/mismatched-assessments', { headers: getHeaders() })
+      .then(res => setMismatchedAssessments(res.data))
+      .catch(() => setMismatchedAssessments(null));
+  };
+
+  useEffect(() => { loadUsers(); loadResourcePersons(); loadDiagnostics(); loadFinancialIssues(); loadMismatchedAssessments(); }, []);
+
+  const handleDeleteMismatched = async (assessmentId) => {
+    setError(''); setMessage('');
+    try {
+      const res = await axios.delete(`https://fetchtms.onrender.com/diagnostics/mismatched-assessments/${assessmentId}`, { headers: getHeaders() });
+      setMessage(res.data.message);
+      loadMismatchedAssessments();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to delete this record');
+    }
+  };
 
   const handleBackfillFinancial = async () => {
     setError(''); setMessage('');
@@ -197,6 +215,35 @@ export default function ManageUsersPage() {
           </div>
         )
       ) : <p style={{ color: 'gray', marginBottom: '20px' }}>Loading financial check...</p>}
+
+      <h3>Mismatched Marks Check</h3>
+      {mismatchedAssessments ? (
+        mismatchedAssessments.length === 0 ? (
+          <p style={{ color: '#2e7d32', marginBottom: '20px' }}>No issues found — every recorded mark's module matches the course it was entered under.</p>
+        ) : (
+          <div style={{ marginBottom: '20px' }}>
+            <p style={{ color: '#c62828' }}>
+              <strong>{mismatchedAssessments.length} mark(s) were recorded under the wrong course</strong> (this can happen if the course was switched on the marks-entry form before the module list finished loading — it can hide real marks from certificate checks and show them under the wrong course):
+            </p>
+            <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse', width: '100%', marginBottom: '10px' }}>
+              <thead><tr><th>Student</th><th>Module</th><th>Marks</th><th>Recorded Under</th><th>Module Actually Belongs To</th><th>Action</th></tr></thead>
+              <tbody>
+                {mismatchedAssessments.map(m => (
+                  <tr key={m.assessment_id}>
+                    <td>{m.student_name}</td>
+                    <td>{m.module_name}</td>
+                    <td>{m.marks} ({m.eval_type})</td>
+                    <td>{m.recorded_course}</td>
+                    <td>{m.module_actually_belongs_to}</td>
+                    <td><button onClick={() => handleDeleteMismatched(m.assessment_id)}>Delete</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p style={{ fontSize: '13px', color: 'gray' }}>Deleting a record does not re-create it — ask the resource person to re-enter these marks under the correct course afterward.</p>
+          </div>
+        )
+      ) : <p style={{ color: 'gray', marginBottom: '20px' }}>Loading marks check...</p>}
 
       <h3>All User Accounts</h3>
 

@@ -810,6 +810,45 @@ app.post('/diagnostics/financial-integrity/backfill', authenticate(['admin']), a
   res.json({ message: `Fixed ${fixedCount} registration(s)`, fixedCount });
 });
 
+// Diagnostic: finds assessment records where the module and course don't actually match —
+// this can happen if a course was switched on the marks-entry form before the modules list
+// for the new course finished loading.
+app.get('/diagnostics/mismatched-assessments', authenticate(['admin']), async (req, res) => {
+  const { data: assessments } = await supabase.from('assessments').select('*');
+  const { data: modules } = await supabase.from('modules').select('module_id, module_name, course_id');
+  const { data: courses } = await supabase.from('courses').select('course_id, code, name');
+  const { data: students } = await supabase.from('students').select('student_id, full_name');
+
+  const mismatched = (assessments || []).filter(a => {
+    const mod = (modules || []).find(m => m.module_id === a.module_id);
+    return mod && mod.course_id !== a.course_id;
+  }).map(a => {
+    const mod = (modules || []).find(m => m.module_id === a.module_id);
+    const recordedCourse = (courses || []).find(c => c.course_id === a.course_id);
+    const actualModuleCourse = (courses || []).find(c => c.course_id === mod.course_id);
+    const student = (students || []).find(s => s.student_id === a.student_id);
+    return {
+      assessment_id: a.assessment_id,
+      student_name: student ? student.full_name : a.student_id,
+      module_name: mod.module_name,
+      marks: a.marks,
+      eval_type: a.eval_type,
+      recorded_course: recordedCourse ? `${recordedCourse.code} — ${recordedCourse.name}` : a.course_id,
+      module_actually_belongs_to: actualModuleCourse ? `${actualModuleCourse.code} — ${actualModuleCourse.name}` : mod.course_id
+    };
+  });
+
+  res.json(mismatched);
+});
+
+// Deletes a mismatched assessment record so it can be re-entered correctly
+app.delete('/diagnostics/mismatched-assessments/:id', authenticate(['admin']), async (req, res) => {
+  const { id } = req.params;
+  const { error } = await supabase.from('assessments').delete().eq('assessment_id', id);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ message: 'Deleted. Ask the resource person to re-enter these marks under the correct course.' });
+});
+
 app.get('/diagnostics/account-links', authenticate(['admin']), async (req, res) => {
   const { data: users } = await supabase.from('users').select('user_id, username, role');
   const { data: students } = await supabase.from('students').select('student_id, full_name, user_id');

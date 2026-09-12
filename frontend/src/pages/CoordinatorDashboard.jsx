@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -11,6 +11,7 @@ export default function CoordinatorDashboard() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const navigate = useNavigate();
+  const latestCourseRef = useRef(null);
 
   const [attCourseId, setAttCourseId] = useState('');
   const [attStudentId, setAttStudentId] = useState('');
@@ -34,15 +35,16 @@ export default function CoordinatorDashboard() {
     navigate('/login');
   };
 
-  const loadMarks = async (e) => {
-    if (e) e.preventDefault();
+  const loadMarks = async (forCourseId) => {
     setError(''); setMessage('');
     try {
-      const res = await axios.get(`https://fetchtms.onrender.com/assessments/course/${courseId}`, { headers: getHeaders() });
-      setAllAssessments(res.data);
+      const res = await axios.get(`https://fetchtms.onrender.com/assessments/course/${forCourseId}`, { headers: getHeaders() });
+      if (latestCourseRef.current === forCourseId) setAllAssessments(res.data);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load marks');
-      setAllAssessments([]);
+      if (latestCourseRef.current === forCourseId) {
+        setError(err.response?.data?.error || 'Failed to load marks');
+        setAllAssessments([]);
+      }
     }
   };
 
@@ -57,20 +59,23 @@ export default function CoordinatorDashboard() {
     }
   };
 
-  const loadCourseStudentsAndSessions = async (e) => {
-    if (e) e.preventDefault();
+  const loadCourseStudentsAndSessions = async (forCourseId) => {
     setError(''); setMessage('');
     try {
       const [regRes, sessRes] = await Promise.all([
-        axios.get(`https://fetchtms.onrender.com/registrations/${attCourseId}`, { headers: getHeaders() }),
-        axios.get(`https://fetchtms.onrender.com/course-sessions/${attCourseId}`, { headers: getHeaders() })
+        axios.get(`https://fetchtms.onrender.com/registrations/${forCourseId}`, { headers: getHeaders() }),
+        axios.get(`https://fetchtms.onrender.com/course-sessions/${forCourseId}`, { headers: getHeaders() })
       ]);
-      setStudents(regRes.data);
-      setSessions(sessRes.data);
+      if (latestCourseRef.current === forCourseId) {
+        setStudents(regRes.data);
+        setSessions(sessRes.data);
+      }
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load students for this course');
-      setStudents([]);
-      setSessions([]);
+      if (latestCourseRef.current === forCourseId) {
+        setError(err.response?.data?.error || 'Failed to load students for this course');
+        setStudents([]);
+        setSessions([]);
+      }
     }
   };
 
@@ -107,12 +112,13 @@ export default function CoordinatorDashboard() {
   };
 
   const selectCourse = (id) => {
+    latestCourseRef.current = id;
     setCourseId(id);
     setAttCourseId(id);
     setAttStudentId('');
     setAttendedSessionIds([]);
-    loadMarks();
-    loadCourseStudentsAndSessions();
+    loadMarks(id);
+    loadCourseStudentsAndSessions(id);
   };
 
   return (

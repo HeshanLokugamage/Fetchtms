@@ -50,34 +50,38 @@ export default function ResourcePersonDashboard() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     if (asCourseId) {
       axios.get(`https://fetchtms.onrender.com/modules/${asCourseId}`, { headers: getHeaders() })
-        .then(res => setModules(res.data))
-        .catch(() => setModules([]));
+        .then(res => { if (!cancelled) setModules(res.data); })
+        .catch(() => { if (!cancelled) setModules([]); });
       axios.get(`https://fetchtms.onrender.com/registrations/${asCourseId}`, { headers: getHeaders() })
-        .then(res => setAsCourseStudents(res.data))
-        .catch(() => setAsCourseStudents([]));
+        .then(res => { if (!cancelled) setAsCourseStudents(res.data); })
+        .catch(() => { if (!cancelled) setAsCourseStudents([]); });
     } else {
       setModules([]);
       setAsCourseStudents([]);
     }
     setAsStudentId(''); setAsModuleId('');
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asCourseId]);
 
   useEffect(() => {
+    let cancelled = false;
     if (attCourseId) {
       axios.get(`https://fetchtms.onrender.com/registrations/${attCourseId}`, { headers: getHeaders() })
-        .then(res => setAttCourseStudents(res.data))
-        .catch(() => setAttCourseStudents([]));
+        .then(res => { if (!cancelled) setAttCourseStudents(res.data); })
+        .catch(() => { if (!cancelled) setAttCourseStudents([]); });
       axios.get(`https://fetchtms.onrender.com/course-sessions/${attCourseId}`, { headers: getHeaders() })
-        .then(res => setAttSessions(res.data))
-        .catch(() => setAttSessions([]));
+        .then(res => { if (!cancelled) setAttSessions(res.data); })
+        .catch(() => { if (!cancelled) setAttSessions([]); });
     } else {
       setAttCourseStudents([]);
       setAttSessions([]);
     }
     setAttStudentId(''); setAttendedSessionIds([]);
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attCourseId]);
 
