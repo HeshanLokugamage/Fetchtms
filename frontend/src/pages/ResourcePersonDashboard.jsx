@@ -19,9 +19,8 @@ export default function ResourcePersonDashboard() {
   const [attCourseId, setAttCourseId] = useState('');
   const [attCourseStudents, setAttCourseStudents] = useState([]);
   const [attSessions, setAttSessions] = useState([]);
-  const [sessionId, setSessionId] = useState('');
   const [attStudentId, setAttStudentId] = useState('');
-  const [attStatus, setAttStatus] = useState('present');
+  const [attendedSessionIds, setAttendedSessionIds] = useState([]);
 
   // Enter Marks — scoped to a selected course
   const [asCourseId, setAsCourseId] = useState('');
@@ -78,7 +77,7 @@ export default function ResourcePersonDashboard() {
       setAttCourseStudents([]);
       setAttSessions([]);
     }
-    setAttStudentId(''); setSessionId('');
+    setAttStudentId(''); setAttendedSessionIds([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attCourseId]);
 
@@ -121,18 +120,34 @@ export default function ResourcePersonDashboard() {
     }
   };
 
+  const selectAttendanceStudent = (studentId) => {
+    setAttStudentId(studentId);
+    if (studentId && attCourseId) {
+      axios.get(`https://fetchtms.onrender.com/attendance/course/${attCourseId}/student/${studentId}`, { headers: getHeaders() })
+        .then(res => setAttendedSessionIds(res.data.filter(a => a.status === 'present').map(a => a.session_id)))
+        .catch(() => setAttendedSessionIds([]));
+    } else {
+      setAttendedSessionIds([]);
+    }
+  };
+
+  const toggleAttendedSession = (id) => {
+    setAttendedSessionIds(prev => prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]);
+  };
+
   const handleMarkAttendance = async (e) => {
     e.preventDefault();
     setMessage('');
     setError('');
     try {
-      await axios.post('https://fetchtms.onrender.com/attendance', {
-        session_id: sessionId,
-        student_id: attStudentId,
-        status: attStatus
-      }, { headers: getHeaders() });
-      setMessage('Attendance marked successfully');
-      setAttStudentId('');
+      await Promise.all(attSessions.map(s =>
+        axios.post('https://fetchtms.onrender.com/attendance', {
+          session_id: s.session_id,
+          student_id: attStudentId,
+          status: attendedSessionIds.includes(s.session_id) ? 'present' : 'absent'
+        }, { headers: getHeaders() })
+      ));
+      setMessage('Attendance saved successfully for all sessions shown');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to mark attendance');
     }
@@ -256,20 +271,8 @@ export default function ResourcePersonDashboard() {
           </select>
         </div>
         <div style={{ marginBottom: '10px' }}>
-          <label>Session</label><br />
-          <select value={sessionId} onChange={e => setSessionId(e.target.value)} style={{ width: '100%', padding: '8px' }} required disabled={!attCourseId}>
-            <option value="">{attCourseId ? 'Select Session' : 'Select a Course first'}</option>
-            {attSessions.map(s => (
-              <option key={s.session_id} value={s.session_id}>{s.session_date} ({s.start_time}–{s.end_time})</option>
-            ))}
-          </select>
-          {attCourseId && attSessions.length === 0 && (
-            <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>No sessions created for this course yet.</p>
-          )}
-        </div>
-        <div style={{ marginBottom: '10px' }}>
           <label>Student</label><br />
-          <select value={attStudentId} onChange={e => setAttStudentId(e.target.value)} style={{ width: '100%', padding: '8px' }} required disabled={!attCourseId}>
+          <select value={attStudentId} onChange={e => selectAttendanceStudent(e.target.value)} style={{ width: '100%', padding: '8px' }} required disabled={!attCourseId}>
             <option value="">{attCourseId ? 'Select Student' : 'Select a Course first'}</option>
             {attCourseStudents.map(r => (
               <option key={r.student_id} value={r.student_id}>{r.student?.full_name || `Student #${r.student_id}`}</option>
@@ -280,13 +283,29 @@ export default function ResourcePersonDashboard() {
           )}
         </div>
         <div style={{ marginBottom: '10px' }}>
-          <label>Status</label><br />
-          <select value={attStatus} onChange={e => setAttStatus(e.target.value)} style={{ width: '100%', padding: '8px' }}>
-            <option value="present">Present</option>
-            <option value="absent">Absent</option>
-          </select>
+          <label>Tick the dates attended</label><br />
+          {attSessions.length === 0 && attCourseId && (
+            <p style={{ fontSize: '13px', color: 'gray', marginTop: '4px' }}>No sessions created for this course yet.</p>
+          )}
+          {attSessions.map(s => (
+            <label key={s.session_id} style={{ display: 'block', marginBottom: '6px' }}>
+              <input
+                type="checkbox"
+                checked={attendedSessionIds.includes(s.session_id)}
+                onChange={() => toggleAttendedSession(s.session_id)}
+                disabled={!attStudentId}
+                style={{ marginRight: '6px' }}
+              />
+              {s.session_date} ({s.start_time}–{s.end_time})
+            </label>
+          ))}
+          {attStudentId && (
+            <p style={{ fontSize: '12px', color: 'gray', marginTop: '4px' }}>
+              Ticked dates are saved as Present; unticked dates are saved as Absent.
+            </p>
+          )}
         </div>
-        <button type="submit" style={{ padding: '8px 16px' }}>Mark Attendance</button>
+        <button type="submit" style={{ padding: '8px 16px' }} disabled={!attStudentId || attSessions.length === 0}>Save Attendance</button>
       </form>
 
       <h3>Enter Module Marks</h3>

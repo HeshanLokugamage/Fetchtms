@@ -1551,6 +1551,23 @@ app.post('/attendance', authenticate(['resource_person', 'admin', 'device', 'coo
   res.status(201).json({ message: 'Attendance marked', attendance: data[0] });
 });
 
+app.get('/attendance/course/:courseId/student/:studentId', authenticate(['admin', 'device', 'resource_person', 'coordinator']), async (req, res) => {
+  const { courseId, studentId } = req.params;
+
+  const { data: sessions } = await supabase.from('course_sessions').select('session_id').eq('course_id', courseId);
+  const sessionIds = (sessions || []).map(s => s.session_id);
+  if (sessionIds.length === 0) return res.json([]);
+
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('*')
+    .eq('student_id', studentId)
+    .in('session_id', sessionIds);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
 app.get('/attendance/my', authenticate(['student']), async (req, res) => {
   const studentId = await getStudentIdForUser(req.user.userId);
   if (!studentId) return res.status(404).json({ error: 'No student record linked to this account' });
