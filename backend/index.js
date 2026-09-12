@@ -810,6 +810,40 @@ app.post('/diagnostics/financial-integrity/backfill', authenticate(['admin']), a
   res.json({ message: `Fixed ${fixedCount} registration(s)`, fixedCount });
 });
 
+// Diagnostic: finds multiple assessment entries for the same student/module/evaluation type,
+// which should not be possible going forward but may exist from before duplicate prevention was added.
+app.get('/diagnostics/duplicate-assessments', authenticate(['admin']), async (req, res) => {
+  const { data: assessments } = await supabase.from('assessments').select('*');
+  const { data: modules } = await supabase.from('modules').select('module_id, module_name');
+  const { data: courses } = await supabase.from('courses').select('course_id, code, name');
+  const { data: students } = await supabase.from('students').select('student_id, full_name');
+
+  const groups = {};
+  (assessments || []).forEach(a => {
+    const key = `${a.student_id}|${a.course_id}|${a.module_id}|${a.eval_type}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(a);
+  });
+
+  const duplicateGroups = Object.values(groups)
+    .filter(g => g.length > 1)
+    .map(g => {
+      const first = g[0];
+      const mod = (modules || []).find(m => m.module_id === first.module_id);
+      const course = (courses || []).find(c => c.course_id === first.course_id);
+      const student = (students || []).find(s => s.student_id === first.student_id);
+      return {
+        student_name: student ? student.full_name : first.student_id,
+        course_name: course ? `${course.code} — ${course.name}` : first.course_id,
+        module_name: mod ? mod.module_name : first.module_id,
+        eval_type: first.eval_type,
+        entries: g.map(a => ({ assessment_id: a.assessment_id, marks: a.marks, reviewed: a.reviewed, published: a.published }))
+      };
+    });
+
+  res.json(duplicateGroups);
+});
+
 // Diagnostic: finds assessment records where the module and course don't actually match —
 // this can happen if a course was switched on the marks-entry form before the modules list
 // for the new course finished loading.
@@ -1656,6 +1690,34 @@ app.post('/assessments', authenticate(['resource_person', 'admin']), async (req,
   }
 
   const grade = computeGrade(marks);
+
+  // Prevent duplicate entries for the same student/module/evaluation type.
+  const { data: existing, error: existingError } = await supabase
+    .from('assessments')
+    .select('*')
+    .eq('student_id', student_id)
+    .eq('course_id', course_id)
+    .eq('module_id', module_id)
+    .eq('eval_type', eval_type);
+
+  if (existingError) return res.status(500).json({ error: existingError.message });
+
+  if (existing && existing.length > 0) {
+    const current = existing[0];
+    if (current.reviewed) {
+      return res.status(400).json({
+        error: `Marks for this module (${eval_type}) have already been reviewed and published. Ask the coordinator to make any change.`
+      });
+    }
+    const { data, error } = await supabase
+      .from('assessments')
+      .update({ marks, grade })
+      .eq('assessment_id', current.assessment_id)
+      .select();
+
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ message: 'Existing marks for this module updated (was pending review)', assessment: data[0] });
+  }
 
   const { data, error } = await supabase
     .from('assessments')

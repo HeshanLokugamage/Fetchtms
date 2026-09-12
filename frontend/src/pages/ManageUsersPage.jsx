@@ -8,6 +8,7 @@ export default function ManageUsersPage() {
   const [diagnostics, setDiagnostics] = useState(null);
   const [financialIssues, setFinancialIssues] = useState(null);
   const [mismatchedAssessments, setMismatchedAssessments] = useState(null);
+  const [duplicateGroups, setDuplicateGroups] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [newPasswords, setNewPasswords] = useState({});
@@ -49,7 +50,25 @@ export default function ManageUsersPage() {
       .catch(() => setMismatchedAssessments(null));
   };
 
-  useEffect(() => { loadUsers(); loadResourcePersons(); loadDiagnostics(); loadFinancialIssues(); loadMismatchedAssessments(); }, []);
+  const loadDuplicateGroups = () => {
+    axios.get('https://fetchtms.onrender.com/diagnostics/duplicate-assessments', { headers: getHeaders() })
+      .then(res => setDuplicateGroups(res.data))
+      .catch(() => setDuplicateGroups(null));
+  };
+
+  useEffect(() => { loadUsers(); loadResourcePersons(); loadDiagnostics(); loadFinancialIssues(); loadMismatchedAssessments(); loadDuplicateGroups(); }, []);
+
+  const handleDeleteDuplicate = async (assessmentId) => {
+    setError(''); setMessage('');
+    try {
+      const res = await axios.delete(`https://fetchtms.onrender.com/diagnostics/mismatched-assessments/${assessmentId}`, { headers: getHeaders() });
+      setMessage(res.data.message);
+      loadDuplicateGroups();
+      loadMismatchedAssessments();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to delete this record');
+    }
+  };
 
   const handleDeleteMismatched = async (assessmentId) => {
     setError(''); setMessage('');
@@ -57,6 +76,7 @@ export default function ManageUsersPage() {
       const res = await axios.delete(`https://fetchtms.onrender.com/diagnostics/mismatched-assessments/${assessmentId}`, { headers: getHeaders() });
       setMessage(res.data.message);
       loadMismatchedAssessments();
+      loadDuplicateGroups();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to delete this record');
     }
@@ -244,6 +264,38 @@ export default function ManageUsersPage() {
           </div>
         )
       ) : <p style={{ color: 'gray', marginBottom: '20px' }}>Loading marks check...</p>}
+
+      <h3>Duplicate Marks Check</h3>
+      {duplicateGroups ? (
+        duplicateGroups.length === 0 ? (
+          <p style={{ color: '#2e7d32', marginBottom: '20px' }}>No issues found — no student has more than one mark recorded for the same module and evaluation type.</p>
+        ) : (
+          <div style={{ marginBottom: '20px' }}>
+            <p style={{ color: '#c62828' }}>
+              <strong>{duplicateGroups.length} module/evaluation combination(s) have more than one mark recorded</strong> for the same student — keep the correct one and delete the rest:
+            </p>
+            {duplicateGroups.map((g, i) => (
+              <div key={i} style={{ marginBottom: '14px', border: '1px solid #ddd', borderRadius: '6px', padding: '10px' }}>
+                <p style={{ marginBottom: '6px' }}>
+                  <strong>{g.student_name}</strong> — {g.course_name} — {g.module_name} ({g.eval_type})
+                </p>
+                <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse', width: '100%' }}>
+                  <thead><tr><th>Marks</th><th>Status</th><th>Action</th></tr></thead>
+                  <tbody>
+                    {g.entries.map(e => (
+                      <tr key={e.assessment_id}>
+                        <td>{e.marks}</td>
+                        <td>{e.reviewed ? 'Published' : 'Pending Review'}</td>
+                        <td><button onClick={() => handleDeleteDuplicate(e.assessment_id)}>Delete</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
+        )
+      ) : <p style={{ color: 'gray', marginBottom: '20px' }}>Loading duplicates check...</p>}
 
       <h3>All User Accounts</h3>
 
